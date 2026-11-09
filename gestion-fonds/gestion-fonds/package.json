@@ -1,0 +1,15 @@
+{
+  "name": "gestion-fonds",
+  "version": "1.0.0",
+  "description": "Gestion des fonds : banque, virements fournisseurs, caisse, états de sortie – stockage MongoDB Atlas",
+  "main": "server/index.js",
+  "private": true,
+  "scripts": {
+    "start": "node server/index.js",
+    "demo": "node -e \"process.env.DB_MODE='memory';require('./server/index.js')\""
+  },
+  "engines": { "node": ">=18" },
+  "dependencies": {
+    "mongodb": "^6.10.0"
+  }
+}
