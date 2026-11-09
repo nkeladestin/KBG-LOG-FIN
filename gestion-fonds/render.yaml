@@ -1,0 +1,18 @@
+# Déploiement sur Render.com (Blueprint) : New + → Blueprint → choisir ce dépôt.
+services:
+  - type: web
+    name: gestion-fonds
+    runtime: docker
+    plan: starter            # « free » possible pour essayer (mise en veille après 15 min d'inactivité)
+    healthCheckPath: /api/sante
+    envVars:
+      - key: DB_MODE
+        value: cloud
+      - key: MONGODB_URI     # chaîne Atlas complète, avec le mot de passe
+        sync: false
+      - key: MONGODB_DB
+        value: gestion_fonds
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: COOKIE_SECURE
+        value: "true"
