@@ -48,6 +48,7 @@ function entete(titre, { periode, numero, date, meta = [], extraSous = '' } = {}
     numero && `N° : <b>${esc(numero)}</b>`,
     date && `Date : <b>${fd(date)}</b>`,
     periode && `Période : <b>${esc(libellePeriode(periode))}</b>`,
+    S.me && agencesActives().length > 1 && `Agence : <b>${esc(nomAgenceVue())}</b>`,
     ...meta,
     `Édité le ${new Date().toLocaleDateString('fr-FR')} à ${new Date().toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`,
   ].filter(Boolean);

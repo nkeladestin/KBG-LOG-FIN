@@ -9,7 +9,10 @@ const crypto = require('crypto');
 
 const COLLECTIONS = [
   'parametres', 'comptes', 'fournisseurs', 'operations', 'ordres', 'bons',
-  'clotures', 'pv', 'previsions', 'audit', 'utilisateurs', 'compteurs',
+  'clotures', 'pv', 'previsions', 'audit', 'utilisateurs', 'roles', 'compteurs',
+  // Agences et gestion de stock
+  'agences', 'stock_categories', 'articles', 'lots', 'stock_mouvements', 'stock_pertes',
+  'stock_peremptions', 'stock_transferts', 'stock_inventaires', 'stock_instantanes',
 ];
 
 const newId = () => crypto.randomUUID();
@@ -47,6 +50,10 @@ class MongoStore {
       this.db.collection('pv').createIndex({ date: 1 }),
       this.db.collection('audit').createIndex({ quand: -1 }),
       this.db.collection('utilisateurs').createIndex({ identifiant: 1 }, { unique: true }),
+      this.db.collection('lots').createIndex({ agenceId: 1, articleId: 1, statut: 1 }),
+      this.db.collection('stock_mouvements').createIndex({ agenceId: 1, date: 1 }),
+      this.db.collection('operations').createIndex({ agenceId: 1, date: 1 }),
+      this.db.collection('bons').createIndex({ agenceId: 1, date: 1 }),
     ]);
   }
 
@@ -105,7 +112,7 @@ class MongoStore {
   watch(cb) {
     try {
       const stream = this.db.watch([], { fullDocument: 'default' });
-      stream.on('change', (ch) => cb({ collection: ch.ns && ch.ns.coll, type: ch.operationType }));
+      stream.on('change', (ch) => cb({ collection: ch.ns && ch.ns.coll, type: ch.operationType, id: ch.documentKey && ch.documentKey._id }));
       stream.on('error', (e) => console.warn('[db] Flux de changements interrompu :', e.message));
       return () => stream.close();
     } catch (e) {

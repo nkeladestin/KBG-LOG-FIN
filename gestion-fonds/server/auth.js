@@ -2,7 +2,6 @@
 /** Authentification : mots de passe scrypt, jetons de session signés (HMAC), rôles. */
 const crypto = require('crypto');
 
-const ROLES = { admin: 'Administrateur', saisie: 'Agent de saisie', lecture: 'Consultation' };
 const DUREE_SESSION = 12 * 3600 * 1000;
 
 function hacher(motDePasse, sel = crypto.randomBytes(16).toString('hex')) {
@@ -31,15 +30,42 @@ function createAuth(store, secret) {
     if (sig.length !== attendu.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(attendu))) return null;
     let data;
     try { data = JSON.parse(Buffer.from(payload, 'base64url').toString()); } catch { return null; }
-    if (!data.e || data.e < Date.now()) return null;
+    if (!data.e || data.e < Date.now() || data.t) return null; // un jeton de transfert n'est jamais une session
     const u = await store.col('utilisateurs').findOne({ _id: data.u });
-    if (!u || u.actif === false || (u.versionSession || 0) !== data.v) return null;
-    return { _id: u._id, identifiant: u.identifiant, nom: u.nom, role: u.role };
+    if (!u || u.supprime || (u.versionSession || 0) !== data.v) return null;
+    // Compte suspendu : la session n'est pas détruite (réactivation automatique), mais tout est bloqué.
+    return { _id: u._id, identifiant: u.identifiant, nom: u.nom, role: u.role, agenceId: u.role === 'admin' ? '' : (u.agenceId || ''), permissionsPerso: Array.isArray(u.permissions) ? u.permissions : null, doitChanger: !!u.doitChanger, suspendu: u.actif === false, versionSession: u.versionSession || 0 };
   }
 
   async function connecter(identifiant, motDePasse) {
-    const u = await store.col('utilisateurs').findOne({ identifiant: String(identifiant || '').trim().toLowerCase() });
-    if (!u || u.actif === false || !verifier(motDePasse || '', u.sel, u.hash)) return null;
+    const id = String(identifiant || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '').toLowerCase();
+    const u = await store.col('utilisateurs').findOne({ identifiant: id });
+    if (!u || u.supprime || !u.hash || !verifier(motDePasse || '', u.sel, u.hash)) return null;
+    if (u.actif === false) return { suspendu: true }; // mot de passe juste, accès suspendu par l'administrateur
+    return u;
+  }
+
+  /**
+   * Jeton de transfert (2 minutes, usage unique) : un ordinateur non relié au cloud vérifie l'identifiant
+   * auprès du serveur en ligne et ouvre la session directement sur celui-ci, sans ressaisie.
+   */
+  const jetonsUtilises = new Map();
+  function emettreJeton(user) {
+    const payload = b64(JSON.stringify({ u: user._id, e: Date.now() + 120000, v: user.versionSession || 0, t: 'tr', n: crypto.randomBytes(8).toString('hex') }));
+    return `${payload}.${signer(payload)}`;
+  }
+  async function lireJeton(jeton) {
+    if (!jeton || typeof jeton !== 'string' || !jeton.includes('.')) return null;
+    const [payload, sig] = jeton.split('.');
+    const attendu = signer(payload);
+    if (sig.length !== attendu.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(attendu))) return null;
+    let data;
+    try { data = JSON.parse(Buffer.from(payload, 'base64url').toString()); } catch { return null; }
+    if (data.t !== 'tr' || !data.e || data.e < Date.now() || jetonsUtilises.has(data.n)) return null;
+    for (const [n, e] of jetonsUtilises) if (e < Date.now()) jetonsUtilises.delete(n);
+    jetonsUtilises.set(data.n, data.e);
+    const u = await store.col('utilisateurs').findOne({ _id: data.u });
+    if (!u || u.actif === false || u.supprime || (u.versionSession || 0) !== data.v) return null;
     return u;
   }
 
@@ -55,7 +81,28 @@ function createAuth(store, secret) {
     return genere ? motDePasse : '(défini par ADMIN_PASSWORD)';
   }
 
-  return { emettre, lire, connecter, initialiserAdmin, hacher };
+  /**
+   * Jeton de poste : relie un ordinateur au cloud au nom de l'utilisateur qui s'y est connecté, dans son
+   * périmètre (toutes agences pour un administrateur, son agence pour un responsable). Sans expiration,
+   * mais invalidé dès que l'utilisateur est suspendu, supprimé ou change de mot de passe.
+   */
+  function emettreJetonPoste(user, poste) {
+    const payload = b64(JSON.stringify({ u: user._id, p: String(poste || '').slice(0, 12), v: user.versionSession || 0, t: 'poste' }));
+    return `${payload}.${signer(payload)}`;
+  }
+  async function lireJetonPoste(jeton) {
+    if (!jeton || typeof jeton !== 'string' || !jeton.includes('.')) return null;
+    const [payload, sig] = jeton.split('.');
+    const attendu = signer(payload);
+    if (!sig || sig.length !== attendu.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(attendu))) return null;
+    let data;
+    try { data = JSON.parse(Buffer.from(payload, 'base64url').toString()); } catch { return null; }
+    if (data.t !== 'poste') return null;
+    const u = await store.col('utilisateurs').findOne({ _id: data.u });
+    if (!u || u.supprime || (u.versionSession || 0) !== data.v) return null;
+    return { user: u, poste: data.p, suspendu: u.actif === false };
+  }
+  return { emettre, lire, connecter, initialiserAdmin, hacher, emettreJeton, lireJeton, emettreJetonPoste, lireJetonPoste };
 }
 
-module.exports = { createAuth, ROLES, DUREE_SESSION };
+module.exports = { createAuth, verifier, DUREE_SESSION };

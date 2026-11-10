@@ -141,17 +141,31 @@ class LocalStore extends MemoryStore {
   }
 
   /** Applique des documents reçus du cloud (sauf ceux modifiés localement et pas encore envoyés). */
-  appliquerDistant(col, docs, supprimes = []) {
+  appliquerDistant(col, docs, supprimes = [], options = {}) {
     if (LOCALES.has(col) || !this.data[col]) return Promise.resolve(0);
     return this.sousVerrou(async () => {
-      const r = [];
+      const r = []; const abandons = [];
       for (const doc of docs) {
-        if (this.outbox.has(cle(col, doc._id))) continue;
         const cur = this.data[col].find((d) => d._id === doc._id);
+        const k = cle(col, doc._id);
+        if (this.outbox.has(k)) {
+          // Première liaison d'un poste qui a travaillé seul : le cloud est prioritaire sur les données
+          // présentes des deux côtés (la modification locale en attente est abandonnée).
+          if (options.prioriteCloud) abandons.push([k, this.outbox.get(k).seq]);
+          // Sinon, une modification locale en attente n'est jamais écrasée… sauf un élément par défaut
+          // (« semence ») créé au premier démarrage, que la version du cloud remplace.
+          else if (!(cur && cur.semence && !doc.semence)) continue;
+        }
         if (cur && JSON.stringify(cur) === JSON.stringify(doc)) continue;
         r.push({ col, id: doc._id, doc });
       }
-      for (const id of supprimes) if (!this.outbox.has(cle(col, id)) && this.data[col].some((d) => d._id === id)) r.push({ col, id, doc: null });
+      for (const id of supprimes) {
+        const k = cle(col, id);
+        if (!this.data[col].some((d) => d._id === id)) continue;
+        if (this.outbox.has(k)) { if (!options.prioriteCloud) continue; abandons.push([k, this.outbox.get(k).seq]); }
+        r.push({ col, id, doc: null });
+      }
+      if (abandons.length) { this._ecrireLigne({ a: abandons }); this._rejouer({ a: abandons }); }
       if (!r.length) return 0;
       this._ecrireLigne({ r });
       this._rejouer({ r });

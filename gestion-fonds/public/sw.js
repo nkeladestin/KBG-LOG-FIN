@@ -1,9 +1,9 @@
 /* Service worker de Gestion des fonds : rend l'application installable et charge l'interface
    même sur un réseau faible. Les données (API) ne sont jamais mises en cache : elles viennent
    toujours du serveur, donc de MongoDB Atlas. */
-const VERSION = 'gf-v1';
+const VERSION = 'gf-v10';
 const INTERFACE = [
-  '/', '/index.html', '/css/app.css', '/js/core.js', '/js/docs.js', '/js/pages.js',
+  '/', '/index.html', '/css/app.css', '/js/core.js', '/js/docs.js', '/js/pages.js', '/js/stock.js',
   '/manifest.webmanifest', '/favicon.svg', '/icones/icon-192.png', '/icones/icon-512.png', '/icones/apple-touch-icon.png',
 ];
 

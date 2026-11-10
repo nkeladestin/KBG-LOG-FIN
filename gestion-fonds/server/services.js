@@ -4,6 +4,7 @@
  * clôtures journalières, PV de contrôle, prévisions, traçabilité (journal d'audit).
  */
 const { montantEnLettres } = require('./lettres');
+const { agenceCourante } = require('./agences');
 
 class ErreurMetier extends Error {
   constructor(message, status = 400) { super(message); this.status = status; }
@@ -187,9 +188,17 @@ function createServices(store, broadcast) {
     return arrondi(s);
   }
 
+  /** Solde initial de la caisse : celui de l'agence en vigueur, ou la somme de toutes les agences. */
+  async function soldeInitialCaisse(ctx) {
+    const a = agenceCourante();
+    if (a) { const ag = await ctx.col('agences').findOne({ _id: a }); return ag ? Number(ag.soldeInitialCaisse) || 0 : 0; }
+    const ags = await ctx.col('agences').find({});
+    if (!ags.length) return (await getParametres(ctx)).soldeInitialCaisse || 0;
+    return arrondi(ags.reduce((t, g) => t + (Number(g.soldeInitialCaisse) || 0), 0));
+  }
+
   async function soldeCaisse(ctx, avant) {
-    const p = await getParametres(ctx);
-    let s = p.soldeInitialCaisse || 0;
+    let s = await soldeInitialCaisse(ctx);
     const f = { annulee: { $ne: true } };
     if (avant) f.date = { $lt: avant };
     for (const b of await ctx.col('bons').find(f)) s += b.type === 'entree' ? b.montant : -b.montant;
@@ -214,9 +223,8 @@ function createServices(store, broadcast) {
   }
 
   async function controlerCaisse(ctx, sortie) {
-    const p = await getParametres(ctx);
     const bons = await ctx.col('bons').find({ annulee: { $ne: true } });
-    verifierChronologie(p.soldeInitialCaisse || 0, bons.map((b) => ({ date: b.date, montant: b.montant, sens: b.type })), sortie, 'Solde de caisse');
+    verifierChronologie(await soldeInitialCaisse(ctx), bons.map((b) => ({ date: b.date, montant: b.montant, sens: b.type })), sortie, 'Solde de caisse');
   }
 
   async function verifierCloture(ctx, date) {
@@ -396,8 +404,7 @@ function createServices(store, broadcast) {
         if (bon.type === 'entree') {
           // Retirer un approvisionnement ne doit pas rendre la caisse négative.
           const bons = (await ctx.col('bons').find({ annulee: { $ne: true } })).filter((b) => b._id !== bon._id);
-          const p = await getParametres(ctx);
-          verifierChronologie(p.soldeInitialCaisse || 0, bons.map((b) => ({ date: b.date, montant: b.montant, sens: b.type })),
+          verifierChronologie(await soldeInitialCaisse(ctx), bons.map((b) => ({ date: b.date, montant: b.montant, sens: b.type })),
             { date: bon.date, montant: 0, sens: 'entree' }, 'Solde de caisse');
         }
         await ctx.col('bons').updateOne({ _id: bon._id }, { $set: marque });
@@ -446,9 +453,8 @@ function createServices(store, broadcast) {
       if (bon.operationId) throw new ErreurMetier("Ce bon est lié à une opération bancaire : annulez l'opération bancaire correspondante.");
       await verifierCloture(ctx, bon.date);
       if (bon.type === 'entree') {
-        const p = await getParametres(ctx);
         const bons = (await ctx.col('bons').find({ annulee: { $ne: true } })).filter((b) => b._id !== id);
-        verifierChronologie(p.soldeInitialCaisse || 0, bons.map((b) => ({ date: b.date, montant: b.montant, sens: b.type })),
+        verifierChronologie(await soldeInitialCaisse(ctx), bons.map((b) => ({ date: b.date, montant: b.montant, sens: b.type })),
           { date: bon.date, montant: 0, sens: 'entree' }, 'Solde de caisse');
       }
       await ctx.col('bons').updateOne({ _id: id }, { $set: { annulee: true, motifAnnulation: motif, annuleePar: user.identifiant, annuleeLe: now() } });
@@ -504,9 +510,21 @@ function createServices(store, broadcast) {
   }
 
   /* -------------------------------------------------------------- Prévisions */
+  /** Prévisions de l'agence en vigueur ; sans agence choisie : somme de toutes les agences (lecture seule). */
   async function getPrevisions(annee) {
-    const d = await store.col('previsions').findOne({ _id: String(annee) });
-    return d || { _id: String(annee), encaissements: {}, decaissements: {} };
+    annee = String(annee);
+    const docs = await store.col('previsions').find({ annee });
+    if (agenceCourante()) return docs[0] || { annee, encaissements: {}, decaissements: {} };
+    const somme = { annee, encaissements: {}, decaissements: {}, consolide: true };
+    for (const d of docs) {
+      for (const k of ['encaissements', 'decaissements']) {
+        for (const [cat, mois] of Object.entries(d[k] || {})) {
+          const cur = somme[k][cat] || Array(12).fill(0);
+          somme[k][cat] = cur.map((v, i) => arrondi(v + (Number(mois[i]) || 0)));
+        }
+      }
+    }
+    return somme;
   }
   async function setPrevisions(user, annee, body) {
     if (!/^\d{4}$/.test(String(annee))) throw new ErreurMetier('Année invalide.');
@@ -518,8 +536,12 @@ function createServices(store, broadcast) {
       return r;
     };
     const doc = { encaissements: nettoie(body.encaissements), decaissements: nettoie(body.decaissements), majLe: now(), majPar: user.identifiant };
+    const a = agenceCourante();
+    if (!a) throw new ErreurMetier("Choisissez d'abord l'agence concernée (sélecteur « Agence » en haut de l'écran).");
     await store.tx(async (ctx) => {
-      await ctx.col('previsions').updateOne({ _id: String(annee) }, { $set: doc }, { upsert: true });
+      const cur = await ctx.col('previsions').findOne({ annee: String(annee) });
+      if (cur) await ctx.col('previsions').updateOne({ _id: cur._id }, { $set: doc });
+      else await ctx.col('previsions').insertOne({ _id: `${a}-${annee}`, annee: String(annee), ...doc });
       await audit(ctx, user, 'Prévisions de trésorerie modifiées', String(annee));
     });
     broadcast('previsions');
@@ -530,6 +552,7 @@ function createServices(store, broadcast) {
     ErreurMetier, getParametres, setParametres, listeComptes, listeFournisseurs, enregistrerCompte, enregistrerFournisseur,
     soldeBanque, soldeCaisse, entreeBanque, versementCaisse, virementFournisseur, transfertCaisse, annulerOperation,
     bonManuel, annulerBon, cloturerJournee, creerPV, getPrevisions, setPrevisions, audit, exigerDate, texte, arrondi,
+    prochainNumero, exigerTexte, exigerMontant, soldeInitialCaisse,
   };
 }
 

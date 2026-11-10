@@ -339,3 +339,43 @@ table.dt tr { break-inside: avoid; }
   .obs:empty::before { content: ''; }
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+
+/* Accès retiré en direct par l'administrateur : la fonction s'estompe puis disparaît */
+.droit-retire { transition: opacity .8s ease, filter .8s ease; opacity: .15 !important; filter: grayscale(1) blur(1px); pointer-events: none !important; }
+/* Bandeau de mise à jour de l'application */
+.maj-bandeau { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 2000; background: #1e3a5f; color: #fff;
+  padding: 10px 14px; border-radius: 10px; box-shadow: 0 6px 24px rgba(0,0,0,.25); display: flex; gap: 12px; align-items: center; max-width: calc(100% - 24px); font-size: 14px; }
+.maj-bandeau .btn { background: #fff; color: #1e3a5f; border: 0; white-space: nowrap; }
+
+/* Sélecteur d'agence */
+.agence-zone { padding: 10px 16px 12px; border-bottom: 1px solid rgba(255,255,255,.08); display: grid; gap: 4px; }
+.agence-zone label { font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: #7d8aa5; }
+.agence-zone select { width: 100%; background: rgba(255,255,255,.08); color: #fff; border: 1px solid rgba(255,255,255,.18); border-radius: 7px; padding: 7px 8px; font-size: 13px; }
+.agence-zone select option { color: #111; }
+.agence-fixe { color: #fff; font-weight: 600; font-size: 13.5px; }
+.badge.agence { background: #eef2ff; color: #3949ab; }
+/* Stock */
+.alerte-ligne td { background: #fff8ec; }
+.rupture-ligne td { background: #fdecea; }
+.jauge { display: inline-block; min-width: 64px; }
+.kpi.alerte { border-color: #f0a43a; background: #fff8ec; }
+.kpi.danger { border-color: #e5a29b; background: #fdecea; }
+.lignes-tr td { vertical-align: middle; }
+.compte-input { width: 110px; text-align: right; }
+
+.lien-discret { font-size: 12px; color: var(--muted); text-align: center; margin-top: 4px; }
+/* Gestion des utilisateurs */
+.perm-grille { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; margin-top: 8px; }
+.perm-grille fieldset { margin: 0; }
+.perm-grille label.check { font-size: 13px; margin: 5px 0; align-items: flex-start; }
+.modeles { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.droits-badges .badge { margin: 1px 2px 1px 0; }
+.recap-acces { background: #f4f6fa; border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; font-family: ui-monospace, Consolas, monospace; font-size: 13.5px; white-space: pre-wrap; }
+
+/* Accès suspendu en direct par l'administrateur */
+.acces-bloque { position: fixed; inset: 0; z-index: 5000; background: rgba(15, 23, 42, .78); backdrop-filter: blur(6px); display: flex; align-items: center; justify-content: center; padding: 20px; }
+.acces-boite { background: #fff; border-radius: 14px; padding: 28px 26px; max-width: 420px; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,.35); }
+.acces-boite h2 { margin: 6px 0 10px; font-size: 20px; }
+.acces-boite p { margin: 0 0 10px; line-height: 1.5; }
+.acces-icone { font-size: 36px; }
+body.suspendu #app { filter: blur(3px); pointer-events: none; user-select: none; }

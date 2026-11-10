@@ -130,6 +130,59 @@ L'application est un unique processus Node.js sans étape de compilation. Option
 
 ---
 
+## 3 bis. Stockage : le cloud d'abord
+
+- **Chaque ordinateur se relie au cloud tout seul**, par le serveur en ligne, dès qu'un utilisateur du cloud s'y connecte : aucun mot de passe de la base n'est nécessaire sur les ordinateurs.
+- **Cloud prioritaire** : chaque enregistrement est envoyé immédiatement et n'est confirmé qu'une fois arrivé dans le cloud ; les autres ordinateurs et les téléphones le reçoivent en une à deux secondes.
+- **Sans Internet** : l'ordinateur continue sur sa copie locale ; un message indique que l'enregistrement attend sur ce poste ; tout part automatiquement au retour de la connexion (avec un horodatage du serveur, pour que les autres postes le reçoivent sûrement).
+- **Sécurité** : un poste relié par un responsable d'agence ne reçoit et n'envoie que les données de son agence ; un compte suspendu coupe la liaison de son poste ; un compte créé sur un ordinateur isolé n'est jamais envoyé au cloud, et à la première liaison le cloud l'emporte sur les réglages locaux.
+- La liaison directe à MongoDB Atlas (mot de passe de la base) reste possible mais n'est plus nécessaire.
+
+## 4 bis. Agences et gestion de stock
+
+**Agences**
+- Menu Administration → **Agences** : créez vos agences (code, nom, ville, responsable, solde initial de caisse).
+- Chaque opération (banque, caisse, PV, prévisions, stock, journal d'audit) appartient à une agence.
+- Un utilisateur **rattaché à une agence** (ex. rôle « Responsable d'agence ») ne voit et ne saisit que les données de son agence, avec les seuls droits que l'administrateur a donnés à son rôle. Le serveur l'impose : même en forçant l'adresse, aucune donnée d'une autre agence n'est accessible.
+- L'administrateur (ou un compte « toutes agences ») choisit l'agence dans le sélecteur en haut du menu, ou la vue consolidée.
+- Avec une seule agence, rien ne change : elle s'applique d'office. Les données existantes sont rattachées automatiquement à l'agence « Siège ».
+
+**Stock (produits vivriers)**, d'après le cahier des charges KBG v2 :
+- Articles et catégories (céréales, farines, tubercules, légumineuses, huiles, sucre, fruits et légumes…), seuils min / max par agence.
+- Réceptions par lot : coût unitaire = prix + frais accessoires, péremption, fournisseur, origine, campagne, humidité, impuretés, quarantaine.
+- Sorties en FEFO (le lot qui périme le plus tôt part en premier ; tout écart doit être motivé), transferts inter-agences (en transit puis réception), pertes soumises à validation, inventaires (à l'aveugle) avec écarts valorisés.
+- Chaque jour, automatiquement : lots périmés détectés, bloqués et valorisés en perte ; instantané non modifiable de la valeur du stock.
+- Rapports imprimables / PDF : valeur du stock par agence et catégorie, pertes quotidiennes sur péremption (brute, récupération, nette, cumuls), péremptions à 7 / 15 / 30 jours et stock dormant, état des stocks et réapprovisionnement, pertes par motif, journal des mouvements, évolution quotidienne, PV d'inventaire, bons de réception / sortie / transfert, fiche de traçabilité d'un lot.
+
+## 4 ter. Utilisateurs
+
+- Deux sortes de comptes : **Administrateur** (toutes les agences, tous les droits) et **Responsable d'agence** (une seule agence).
+- Pour chaque responsable, l'administrateur coche ce qu'il peut faire (banque, caisse, contrôles, états, prévisions, stock…), avec des modèles prêts à l'emploi (gestion complète, banque, caisse, stock, consultation seule). Les droits s'appliquent immédiatement sur tous ses appareils.
+- Après la création, un récapitulatif (adresse, identifiant, mot de passe) est prêt à être copié et transmis.
+- Suspendre / réactiver en un clic ; mot de passe consultable par l'administrateur ; suppression avec conservation de l'historique.
+- **Connexion depuis un autre ordinateur** : l'identifiant et le mot de passe sont vérifiés par le serveur en ligne ; l'ordinateur se relie au cloud et la session s'ouvre sur place (à défaut, sur la version en ligne, par un jeton à usage unique valable 2 minutes).
+
+## 5 bis. Mises à jour et droits en temps réel
+
+- **Mise à jour de tous les appareils** : il suffit de publier la nouvelle version sur GitHub (Render la déploie).
+  - Téléphones, tablettes et navigateurs : la page se recharge seule avec la nouvelle version.
+  - Ordinateurs installés : toutes les 10 minutes, chaque PC compare sa version avec celle du serveur en ligne ;
+    si elle est plus récente, il télécharge le code, vérifie chaque fichier (empreinte SHA-256 et syntaxe),
+    garde l'ancienne version dans `maj-precedente`, remplace les fichiers et redémarre.
+  - Une saisie en cours n'est jamais interrompue : la mise à jour attend la fermeture du formulaire.
+  - Les données (`donnees`) et la configuration (`.env`) ne sont jamais touchées.
+- **Droits en temps réel** : quand l'administrateur retire un accès, désactive un compte ou change un rôle,
+  les fonctions concernées s'estompent puis disparaissent immédiatement chez l'utilisateur, sur tous ses appareils.
+- **Suspension et réactivation ciblées** (registre des accès tenu par le serveur) :
+  - Suspension : un événement ciblé bloque aussitôt l'écran de cet utilisateur seulement (moins de 0,1 s sur téléphone,
+    environ 0,5 s sur un ordinateur relié) ; toute requête de sa session est refusée par le serveur (code 423).
+  - Réactivation : l'écran se débloque tout seul, sans se reconnecter (0,1 s sur téléphone, 2 s sur un ordinateur relié).
+  - Compte supprimé ou mot de passe redéfini : la session est fermée sur tous les appareils.
+  - Les droits sont toujours relus côté serveur à chaque requête : aucun privilège ne peut être obtenu depuis l'appareil.
+- **Stabilité** : reconnexion automatique du flux temps réel ; limitation des requêtes par session (600/min),
+  des tentatives de connexion et des fenêtres ouvertes (20 par utilisateur). Test de charge : 300 fenêtres ouvertes,
+  20 utilisateurs, 50 enregistrements/s : aucune erreur, réponse médiane 38 ms, diffusion médiane 5 ms.
+
 ## 6. Règles de gestion appliquées
 
 - **Sens des écritures** (journal banque) : entrée d'argent = colonne *Débit* ; sortie d'argent = colonne *Crédit* ; solde progressif.

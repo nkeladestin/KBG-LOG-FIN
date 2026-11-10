@@ -20,11 +20,38 @@
   <section id="login" class="login" hidden>
     <form id="login-form" class="login-card" autocomplete="on">
       <div class="login-brand"><span class="brand-mark">GF</span><div><strong>Gestion des fonds</strong><small>Banque · Caisse · Trésorerie</small></div></div>
-      <label>Identifiant<input name="identifiant" autocomplete="username" required autofocus></label>
+      <label>Identifiant<input name="identifiant" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required autofocus></label>
       <label>Mot de passe<input name="motDePasse" type="password" autocomplete="current-password" required></label>
       <p class="form-error" id="login-error" hidden></p>
       <button class="btn primary block" type="submit">Se connecter</button>
+      <a href="#" id="lien-installation" class="lien-discret" hidden>Première utilisation de l'application dans votre structure ? Créer le compte administrateur</a>
     </form>
+  </section>
+
+  <!-- Premier démarrage : aucun utilisateur -->
+  <section id="installation" class="login" hidden>
+    <div class="login-card" style="width:min(460px,94vw)">
+      <div class="login-brand"><span class="brand-mark">GF</span><div><strong>Bienvenue dans Gestion des fonds</strong><small>Premier démarrage de cet ordinateur</small></div></div>
+      <div class="tabs" style="margin:0"><button type="button" data-inst="admin" class="active">Nouveau compte administrateur</button><button type="button" data-inst="cloud">Données existantes (cloud)</button></div>
+      <form id="inst-admin" style="display:grid;gap:12px">
+        <p class="muted" style="margin:0;font-size:13px">Créez le compte administrateur. Il pourra ensuite donner des accès aux autres utilisateurs.</p>
+        <label>Nom complet<input name="nom" value="Administrateur" required></label>
+        <label>Identifiant<input name="identifiant" value="admin" required autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false"></label>
+        <label>Mot de passe (8 caractères minimum)<input type="password" name="motDePasse" minlength="8" required autocomplete="new-password"></label>
+        <label>Confirmer le mot de passe<input type="password" name="confirmation" minlength="8" required autocomplete="new-password"></label>
+        <p class="form-error" hidden></p>
+        <button class="btn primary block" type="submit">Créer le compte et continuer</button>
+      </form>
+      <form id="inst-cloud" style="display:grid;gap:12px" hidden>
+        <p class="muted" style="margin:0;font-size:13px">L'application est déjà utilisée sur un autre ordinateur ? Reliez celui-ci au cloud : les comptes et les données existants sont récupérés, puis vous vous connectez avec votre identifiant habituel.</p>
+        <label>Adresse du cluster<input name="hote" required autocapitalize="none" autocorrect="off" spellcheck="false"></label>
+        <label>Utilisateur de base de données<input name="utilisateur" required autocapitalize="none" autocorrect="off" spellcheck="false"></label>
+        <label>Mot de passe de la base de données<input type="password" name="motDePasse" required autocomplete="off"></label>
+        <input type="hidden" name="base" value="gestion_fonds">
+        <p class="form-error" hidden></p>
+        <button class="btn primary block" type="submit">Récupérer les comptes et les données</button>
+      </form>
+    </div>
   </section>
 
   <!-- Application -->
@@ -37,25 +64,36 @@
     </header>
     <div class="voile" data-action="menu-fermer"></div>
     <aside class="sidebar">
-      <div class="brand"><span class="brand-mark">GF</span><div><strong id="brand-nom">Gestion des fonds</strong><small id="brand-sous">Banque · Caisse · Trésorerie</small></div></div>
+      <div class="brand"><span class="brand-mark">GF</span><div><strong id="brand-nom">Gestion des fonds</strong><small id="brand-sous">Banque · Caisse · Stock</small></div></div>
+      <div class="agence-zone" id="agence-zone" hidden><label for="agence-sel">Agence</label><select id="agence-sel"></select><div id="agence-fixe" class="agence-fixe" hidden></div></div>
       <nav id="nav">
         <a href="#/tableau" data-route="tableau">Tableau de bord</a>
         <div class="nav-group">Banque</div>
-        <a href="#/banque" data-route="banque">Opérations bancaires</a>
-        <a href="#/ordres" data-route="ordres">Ordres de virement</a>
-        <a href="#/fournisseurs" data-route="fournisseurs">Fournisseurs</a>
-        <a href="#/comptes" data-route="comptes">Comptes bancaires</a>
+        <a href="#/banque" data-route="banque" data-perm="banque.voir">Opérations bancaires</a>
+        <a href="#/ordres" data-route="ordres" data-perm="banque.voir">Ordres de virement</a>
+        <a href="#/fournisseurs" data-route="fournisseurs" data-perm="banque.voir,fournisseurs.gerer">Fournisseurs</a>
+        <a href="#/comptes" data-route="comptes" data-perm="banque.voir,comptes.gerer">Comptes bancaires</a>
         <div class="nav-group">Caisse</div>
-        <a href="#/caisse" data-route="caisse">Bons de caisse</a>
-        <a href="#/livre" data-route="livre">Livre de caisse</a>
-        <a href="#/controle" data-route="controle">Contrôle de caisse (PV)</a>
+        <a href="#/caisse" data-route="caisse" data-perm="caisse.voir">Bons de caisse</a>
+        <a href="#/livre" data-route="livre" data-perm="caisse.voir,etats.voir">Livre de caisse</a>
+        <a href="#/controle" data-route="controle" data-perm="pv.voir,pv.saisir">Contrôle de caisse (PV)</a>
+        <div class="nav-group">Stock</div>
+        <a href="#/stock" data-route="stock" data-perm="stock.voir">Situation du stock</a>
+        <a href="#/lots" data-route="lots" data-perm="stock.voir">Lots et péremptions</a>
+        <a href="#/mouvements-stock" data-route="mouvements-stock" data-perm="stock.voir">Mouvements de stock</a>
+        <a href="#/transferts" data-route="transferts" data-perm="stock.voir">Transferts entre agences</a>
+        <a href="#/pertes" data-route="pertes" data-perm="stock.voir,stock.pertes">Pertes et périmés</a>
+        <a href="#/inventaires" data-route="inventaires" data-perm="stock.voir,stock.inventaire">Inventaires</a>
+        <a href="#/articles" data-route="articles" data-perm="stock.voir,stock.articles">Articles et catégories</a>
+        <a href="#/etats-stock" data-route="etats-stock" data-perm="stock.etats">Rapports de stock</a>
         <div class="nav-group">Pilotage</div>
-        <a href="#/etats" data-route="etats">États de sortie</a>
-        <a href="#/previsions" data-route="previsions">Prévisions de trésorerie</a>
-        <div class="nav-group admin-only">Administration</div>
-        <a href="#/parametres" data-route="parametres" class="admin-only">Entête &amp; paramètres</a>
-        <a href="#/utilisateurs" data-route="utilisateurs" class="admin-only">Utilisateurs</a>
-        <a href="#/audit" data-route="audit" class="admin-only">Journal d'audit</a>
+        <a href="#/etats" data-route="etats" data-perm="etats.voir">États de sortie</a>
+        <a href="#/previsions" data-route="previsions" data-perm="previsions.voir">Prévisions de trésorerie</a>
+        <div class="nav-group">Administration</div>
+        <a href="#/parametres" data-route="parametres" data-perm="parametres.gerer">Entête &amp; paramètres</a>
+        <a href="#/agences" data-route="agences" data-perm="agences.gerer">Agences</a>
+        <a href="#/utilisateurs" data-route="utilisateurs" data-perm="utilisateurs.gerer">Utilisateurs</a>
+        <a href="#/audit" data-route="audit" data-perm="audit.voir">Journal d'audit</a>
         <a href="#/stockage" data-route="stockage">Stockage &amp; synchronisation</a>
       </nav>
       <div class="sidebar-foot">
@@ -91,12 +129,23 @@
     <div id="doc-pages" class="doc-pages"></div>
   </div>
 
+  <div id="maj-bandeau" class="maj-bandeau" hidden><span id="maj-txt"></span> <button type="button" id="maj-btn" class="btn sm"></button></div>
   <div id="hors-ligne" class="hors-ligne" hidden>Hors connexion – reconnexion automatique dès le retour du réseau</div>
   <div id="toasts" class="toasts" aria-live="polite"></div>
+  <div id="acces-bloque" class="acces-bloque" hidden role="alertdialog" aria-modal="true" aria-labelledby="acces-titre">
+    <div class="acces-boite">
+      <div class="acces-icone">🔒</div>
+      <h2 id="acces-titre">Accès suspendu</h2>
+      <p>L'administrateur a suspendu votre accès à l'application. Aucune donnée n'est plus affichée ni modifiable.</p>
+      <p class="muted">Cet écran se débloquera tout seul dès que l'administrateur rétablira votre accès.</p>
+      <button type="button" class="btn" id="acces-deconnexion">Se déconnecter</button>
+    </div>
+  </div>
   <style id="page-style"></style>
 
   <script src="/js/core.js"></script>
   <script src="/js/docs.js"></script>
   <script src="/js/pages.js"></script>
+  <script src="/js/stock.js"></script>
 </body>
 </html>

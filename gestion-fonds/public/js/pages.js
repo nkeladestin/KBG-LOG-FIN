@@ -2,8 +2,6 @@
 /* =====================================================================
    Pages de l'application et formulaires.
    ===================================================================== */
-const peutEcrire = () => S.me && S.me.role !== 'lecture';
-const estAdmin = () => S.me && S.me.role === 'admin';
 const per = () => ({ debut: S.periode.debut, fin: S.periode.fin });
 const tete = (titre, sous, actions = '') => `<div class="page-head"><div><h1>${titre}</h1>${sous ? `<p>${sous}</p>` : ''}</div><div class="actions">${actions}</div></div>`;
 const vide = (n, txt = 'Aucune donnée sur la période sélectionnée.') => `<tr><td colspan="${n}" class="empty">${txt}</td></tr>`;
@@ -14,7 +12,7 @@ const NATURES = {
 const piedForm = (lbl = 'Enregistrer') => `<p class="form-error" hidden></p><div class="form-foot"><button type="button" class="btn" data-action="close-modal">Annuler</button><button class="btn primary" type="submit">${lbl}</button></div>`;
 function exigerComptes() {
   if (S.comptes.some((c) => c.actif !== false)) return true;
-  toast(estAdmin() ? "Créez d'abord un compte bancaire (menu Comptes bancaires)." : "Aucun compte bancaire n'est configuré. Contactez l'administrateur.", 'err');
+  toast(peut('comptes.gerer') ? "Créez d'abord un compte bancaire (menu Comptes bancaires)." : "Aucun compte bancaire n'est configuré. Contactez l'administrateur.", 'err');
   return false;
 }
 
@@ -23,7 +21,7 @@ PAGES.tableau = {
   async render() {
     const d = await api('GET', '/api/tableau-de-bord');
     return `${tete('Tableau de bord', `Situation au ${new Date().toLocaleDateString('fr-FR', { dateStyle: 'full' })}`,
-      `<span class="write-only actions"><button class="btn primary" data-action="op-entree">+ Entrée d'argent</button><button class="btn" data-action="op-virement">Virement fournisseur</button><button class="btn" data-action="op-transfert">Transfert en caisse</button><button class="btn" data-action="bon-nouveau" data-type="sortie">Bon de sortie caisse</button></span>`)}
+      `<span class="actions"><button class="btn primary" data-perm="banque.saisir" data-action="op-entree">+ Entrée d'argent</button><button class="btn" data-perm="banque.saisir" data-action="op-virement">Virement fournisseur</button><button class="btn" data-perm="banque.saisir" data-action="op-transfert">Transfert en caisse</button><button class="btn" data-perm="caisse.saisir" data-action="bon-nouveau" data-type="sortie">Bon de sortie caisse</button></span>`)}
     <div class="kpis">
       <div class="kpi main"><div class="lbl">Trésorerie totale</div><div class="val">${money(d.total)}</div><div class="sub">Banques + caisse</div></div>
       ${d.soldes.map((s) => `<div class="kpi"><div class="lbl">${esc(s.banque)}</div><div class="val ${s.solde < 0 ? 'neg' : ''}">${money(s.solde)}</div><div class="sub">${esc(s.numero)}${s.intitule ? ` · ${esc(s.intitule)}` : ''}</div></div>`).join('')}
@@ -35,7 +33,10 @@ PAGES.tableau = {
       <div class="kpi"><div class="lbl">Flux net du mois</div><div class="val">${money(d.mois.encaissements - d.mois.decaissements)}</div><div class="sub">&nbsp;</div></div>
       <div class="kpi"><div class="lbl">Dernier contrôle de caisse</div><div class="val">${d.dernierPV ? (d.dernierPV.ecart === 0 ? 'Conforme' : money(d.dernierPV.ecart)) : '—'}</div><div class="sub">${d.dernierPV ? `${esc(d.dernierPV.numero)} du ${fd(d.dernierPV.date)}` : 'Aucun PV'}</div></div>
     </div>
-    ${S.comptes.length ? '' : `<div class="card"><b>Pour commencer :</b> ${estAdmin() ? 'renseignez l\'<a href="#/parametres">entête de vos documents</a>, puis créez vos <a href="#/comptes">comptes bancaires</a> et vos <a href="#/fournisseurs">fournisseurs</a>.' : 'l\'administrateur doit créer les comptes bancaires.'}</div>`}
+    ${S.stockage && S.stockage.serveurEnLigne && S.stockage.serveurEnLigne.aJour === false && peut('stockage.gerer') ? `<div class="card" style="border-color:#b42318;background:#fdecea;margin-bottom:16px"><b>⚠ Le serveur en ligne n'est pas à jour</b> (version ${esc(S.stockage.serveurEnLigne.version)}, ce PC : ${esc(S.stockage.version)}). Les autres ordinateurs et les téléphones utilisent encore l'ancienne version. Envoyez le contenu du dossier <b>gestion-fonds</b> du Bureau sur GitHub (Add file → Upload files → Commit changes) ; Render se met à jour en 3 à 5 minutes.</div>` : ''}
+    ${S.stockage && S.stockage.mode === 'local' && !S.stockage.relaisPossible && peut('stockage.gerer') ? `<div class="card" style="border-color:#f0a43a;background:#fff8ec;margin-bottom:16px"><b>⚠ Connexion cloud inactive sur cet ordinateur.</b> Les comptes et opérations saisis ici ne sont pas visibles sur les autres ordinateurs ni sur les mobiles. <a href="#/stockage">Activer la connexion cloud</a></div>` : ''}
+    ${S.stockage && S.stockage.cloud === 'refuse' ? `<div class="card" style="border-color:#b42318;background:#fdecea;margin-bottom:16px"><b>⚠ Liaison de cet ordinateur au cloud refusée</b> (compte suspendu ou mot de passe changé). Déconnectez-vous puis reconnectez-vous : l'ordinateur se relie à nouveau automatiquement. Vos saisies sont conservées ici en attendant.</div>` : ''}
+    ${S.comptes.length ? '' : `<div class="card"><b>Pour commencer :</b> ${peut('comptes.gerer') ? 'renseignez l\'<a href="#/parametres">entête de vos documents</a>, puis créez vos <a href="#/comptes">comptes bancaires</a> et vos <a href="#/fournisseurs">fournisseurs</a>.' : 'l\'administrateur doit créer les comptes bancaires.'}</div>`}
     <div class="card"><div class="card-head"><h2>Derniers mouvements saisis</h2></div>
       <div class="table-wrap"><table class="data"><thead><tr><th>Date</th><th>N°</th><th>Lieu</th><th>Libellé</th><th class="num">Montant</th></tr></thead><tbody>
       ${d.derniers.map((m) => `<tr class="${m.annulee ? 'strike' : ''}"><td class="nowrap">${fd(m.date)}</td><td class="nowrap">${esc(m.numero)}</td><td>${m.lieu}</td><td>${esc(m.libelle)}</td><td class="num ${m.sens === 'entree' ? 'pos' : 'neg'}">${m.sens === 'entree' ? '+' : '−'} ${money(m.montant)}</td></tr>`).join('') || vide(5, 'Aucun mouvement enregistré.')}
@@ -52,7 +53,7 @@ PAGES.banque = {
     const tD = actives.filter((o) => o.sens === 'entree').reduce((a, o) => a + o.montant, 0);
     const tC = actives.filter((o) => o.sens === 'sortie').reduce((a, o) => a + o.montant, 0);
     return `${tete('Opérations bancaires', 'Entrée d\'argent = débit du compte banque · Sortie d\'argent = crédit du compte banque',
-      `<span class="write-only actions"><button class="btn primary" data-action="op-entree">+ Entrée d'argent</button><button class="btn" data-action="op-virement">Virement fournisseur</button><button class="btn" data-action="op-transfert">Transfert en caisse</button><button class="btn" data-action="op-versement">Versement caisse → banque</button></span>`)}
+      `<span class="actions" data-perm="banque.saisir"><button class="btn primary" data-action="op-entree">+ Entrée d'argent</button><button class="btn" data-action="op-virement">Virement fournisseur</button><button class="btn" data-action="op-transfert">Transfert en caisse</button><button class="btn" data-action="op-versement">Versement caisse → banque</button></span>`)}
     ${barrePeriode(`<label>Compte<select data-f="compte">${optionsComptes(f.compte, true)}</select></label>
       <label>Nature<select data-f="nature"><option value="">Toutes</option>${Object.entries(NATURES).map(([k, [l]]) => `<option value="${k}" ${f.nature === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>`)}
     <div class="card"><div class="table-wrap"><table class="data">
@@ -64,7 +65,7 @@ PAGES.banque = {
         <td>${esc(o.provenance)}</td><td>${esc(o.banqueDestinataire)}</td>
         <td class="num">${o.sens === 'entree' ? nb(o.montant) : ''}</td><td class="num">${o.sens === 'sortie' ? nb(o.montant) : ''}</td>
         <td class="keep nowrap">${o.ordreId ? `<button class="btn sm" data-action="voir-ordre" data-id="${o.ordreId}">${esc(o.ordreNumero)}</button>` : ''}${o.bonId ? `<button class="btn sm" data-action="voir-bon" data-id="${o.bonId}">${esc(o.bonNumero)}</button>` : ''}</td>
-        <td class="keep">${!o.annulee && estAdmin() ? `<button class="btn sm danger" data-action="op-annuler" data-id="${o._id}" data-num="${esc(o.numero)}">Annuler</button>` : ''}</td>
+        <td class="keep">${!o.annulee && peut('banque.annuler') ? `<button class="btn sm danger" data-action="op-annuler" data-id="${o._id}" data-num="${esc(o.numero)}">Annuler</button>` : ''}</td>
       </tr>`).join('') || vide(10)}</tbody>
       <tfoot><tr><td colspan="6">Totaux de la sélection (hors opérations annulées)</td><td class="num">${nb(tD)}</td><td class="num">${nb(tC)}</td><td colspan="2"></td></tr></tfoot>
     </table></div></div>`;
@@ -179,7 +180,7 @@ ACTIONS['voir-pv'] = async (ds) => docPV(await api('GET', `/api/pv/${ds.id}`));
 PAGES.ordres = {
   async render() {
     const ordres = await api('GET', `/api/ordres?${qs(per())}`);
-    return `${tete('Ordres de virement', 'Générés automatiquement à chaque paiement fournisseur', '<span class="write-only"><button class="btn primary" data-action="op-virement">Nouveau virement fournisseur</button></span>')}
+    return `${tete('Ordres de virement', 'Générés automatiquement à chaque paiement fournisseur', '<span data-perm="banque.saisir"><button class="btn primary" data-action="op-virement">Nouveau virement fournisseur</button></span>')}
     ${barrePeriode()}
     <div class="card"><div class="table-wrap"><table class="data">
       <thead><tr><th>N° ordre</th><th>Date</th><th>Bénéficiaire</th><th>Banque destinataire</th><th>Compte débité</th><th>Motif</th><th class="num">Montant</th><th></th></tr></thead>
@@ -192,10 +193,10 @@ PAGES.ordres = {
 /* ========================================================= Fournisseurs */
 PAGES.fournisseurs = {
   async render() {
-    return `${tete('Fournisseurs', 'Le nom, la banque et le compte du fournisseur sont repris sur chaque ordre de virement', '<span class="write-only"><button class="btn primary" data-action="fournisseur-edit">+ Nouveau fournisseur</button></span>')}
+    return `${tete('Fournisseurs', 'Le nom, la banque et le compte du fournisseur sont repris sur chaque ordre de virement', '<span data-perm="fournisseurs.gerer"><button class="btn primary" data-action="fournisseur-edit">+ Nouveau fournisseur</button></span>')}
     <div class="card"><div class="table-wrap"><table class="data">
       <thead><tr><th>Nom</th><th>Banque</th><th>N° de compte</th><th>Contact</th><th>NIF</th><th>Statut</th><th></th></tr></thead>
-      <tbody>${S.fournisseurs.map((f) => `<tr><td><b>${esc(f.nom)}</b>${f.adresse ? `<br><small class="muted">${esc(f.adresse)}</small>` : ''}</td><td>${esc(f.banque)}</td><td>${esc(f.numeroCompte)}</td><td>${esc([f.telephone, f.email].filter(Boolean).join(' · '))}</td><td>${esc(f.nif)}</td><td>${f.actif === false ? '<span class="badge">Inactif</span>' : '<span class="badge in">Actif</span>'}</td><td><span class="write-only"><button class="btn sm" data-action="fournisseur-edit" data-id="${f._id}">Modifier</button></span></td></tr>`).join('') || vide(7, 'Aucun fournisseur enregistré.')}</tbody>
+      <tbody>${S.fournisseurs.map((f) => `<tr><td><b>${esc(f.nom)}</b>${f.adresse ? `<br><small class="muted">${esc(f.adresse)}</small>` : ''}</td><td>${esc(f.banque)}</td><td>${esc(f.numeroCompte)}</td><td>${esc([f.telephone, f.email].filter(Boolean).join(' · '))}</td><td>${esc(f.nif)}</td><td>${f.actif === false ? '<span class="badge">Inactif</span>' : '<span class="badge in">Actif</span>'}</td><td><span data-perm="fournisseurs.gerer"><button class="btn sm" data-action="fournisseur-edit" data-id="${f._id}">Modifier</button></span></td></tr>`).join('') || vide(7, 'Aucun fournisseur enregistré.')}</tbody>
     </table></div></div>`;
   },
 };
@@ -222,10 +223,10 @@ PAGES.comptes = {
   async render() {
     const d = await api('GET', '/api/tableau-de-bord');
     const solde = (id) => (d.soldes.find((s) => s._id === id) || {}).solde;
-    return `${tete('Comptes bancaires', 'Comptes de l\'entreprise sur lesquels sont enregistrées les opérations', estAdmin() ? '<button class="btn primary" data-action="compte-edit">+ Nouveau compte</button>' : '')}
+    return `${tete('Comptes bancaires', 'Comptes de l\'entreprise sur lesquels sont enregistrées les opérations', peut('comptes.gerer') ? '<button class="btn primary" data-action="compte-edit">+ Nouveau compte</button>' : '')}
     <div class="card"><div class="table-wrap"><table class="data">
       <thead><tr><th>Banque</th><th>Intitulé</th><th>N° de compte</th><th>IBAN / SWIFT</th><th class="num">Solde initial</th><th class="num">Solde actuel</th><th>Statut</th><th></th></tr></thead>
-      <tbody>${S.comptes.map((c) => `<tr><td><b>${esc(c.banque)}</b>${c.agence ? `<br><small class="muted">${esc(c.agence)}</small>` : ''}</td><td>${esc(c.intitule)}</td><td>${esc(c.numero)}</td><td>${esc([c.iban, c.swift].filter(Boolean).join(' / '))}</td><td class="num">${nb(c.soldeInitial)}</td><td class="num">${solde(c._id) === undefined ? '—' : nb(solde(c._id))}</td><td>${c.actif === false ? '<span class="badge">Inactif</span>' : '<span class="badge in">Actif</span>'}</td><td>${estAdmin() ? `<button class="btn sm" data-action="compte-edit" data-id="${c._id}">Modifier</button>` : ''}</td></tr>`).join('') || vide(8, 'Aucun compte bancaire.')}</tbody>
+      <tbody>${S.comptes.map((c) => `<tr><td><b>${esc(c.banque)}</b>${c.agence ? `<br><small class="muted">${esc(c.agence)}</small>` : ''}</td><td>${esc(c.intitule)}</td><td>${esc(c.numero)}</td><td>${esc([c.iban, c.swift].filter(Boolean).join(' / '))}</td><td class="num">${nb(c.soldeInitial)}</td><td class="num">${solde(c._id) === undefined ? '—' : nb(solde(c._id))}</td><td>${c.actif === false ? '<span class="badge">Inactif</span>' : '<span class="badge in">Actif</span>'}</td><td>${peut('comptes.gerer') ? `<button class="btn sm" data-action="compte-edit" data-id="${c._id}">Modifier</button>` : ''}</td></tr>`).join('') || vide(8, 'Aucun compte bancaire.')}</tbody>
     </table></div></div>`;
   },
 };
@@ -233,7 +234,7 @@ ACTIONS['compte-edit'] = (ds) => {
   const c = S.comptes.find((x) => x._id === ds.id) || {};
   ouvrirModale(ds.id ? 'Modifier le compte bancaire' : 'Nouveau compte bancaire', `<form id="f"><div class="form-grid">
     <label>Banque<input name="banque" value="${esc(c.banque)}" required></label>
-    <label>Agence<input name="agence" value="${esc(c.agence)}"></label>
+    <label>Agence bancaire (guichet)<input name="agence" value="${esc(c.agence)}"></label>
     <label>Intitulé du compte<input name="intitule" value="${esc(c.intitule)}" placeholder="Compte courant, compte projet…"></label>
     <label>N° de compte<input name="numero" value="${esc(c.numero)}" required></label>
     <label>IBAN / RIB<input name="iban" value="${esc(c.iban)}"></label>
@@ -256,14 +257,14 @@ PAGES.caisse = {
     ]);
     const derniere = clotures[0];
     return `${tete('Bons de caisse', `Solde de caisse actuel : <b>${money(solde.solde)}</b> · Dernière clôture : ${derniere ? `${fd(derniere.date)} (${money(derniere.soldeCloture)})` : 'aucune'}`,
-      `<span class="write-only actions"><button class="btn primary" data-action="bon-nouveau" data-type="entree">+ Bon d'entrée</button><button class="btn primary" data-action="bon-nouveau" data-type="sortie">+ Bon de sortie</button><button class="btn" data-action="cloturer">Clôturer une journée</button></span>`)}
+      `<span class="actions"><button class="btn primary" data-perm="caisse.saisir" data-action="bon-nouveau" data-type="entree">+ Bon d'entrée</button><button class="btn primary" data-perm="caisse.saisir" data-action="bon-nouveau" data-type="sortie">+ Bon de sortie</button><button class="btn" data-perm="caisse.cloturer" data-action="cloturer">Clôturer une journée</button></span>`)}
     ${barrePeriode(`<label>Type<select data-f="typeBon"><option value="">Tous</option><option value="entree" ${f.typeBon === 'entree' ? 'selected' : ''}>Entrées</option><option value="sortie" ${f.typeBon === 'sortie' ? 'selected' : ''}>Sorties</option></select></label>`)}
     <div class="card"><div class="table-wrap"><table class="data">
       <thead><tr><th>N° bon</th><th>Date</th><th>Type</th><th>Libellé</th><th>Remettant / Bénéficiaire</th><th>Imputation</th><th class="num">Montant</th><th></th></tr></thead>
       <tbody>${bons.map((b) => `<tr class="${b.annulee ? 'strike' : ''}"><td class="nowrap">${esc(b.numero)}</td><td>${fd(b.date)}</td>
         <td class="keep"><span class="badge ${b.type === 'entree' ? 'in' : 'out'}">${b.type === 'entree' ? 'Entrée' : 'Sortie'}</span>${b.interne ? ' <span class="badge int">Banque</span>' : ''}${b.annulee ? ' <span class="badge warn">Annulé</span>' : ''}</td>
         <td>${esc(b.libelle)}</td><td>${esc(b.tiers)}</td><td>${esc(b.categorie)}</td><td class="num">${nb(b.montant)}</td>
-        <td class="keep nowrap"><button class="btn sm" data-action="voir-bon" data-id="${b._id}">Imprimer / PDF</button>${!b.annulee && !b.operationId && estAdmin() && !(derniere && b.date <= derniere.date) ? ` <button class="btn sm danger" data-action="bon-annuler" data-id="${b._id}" data-num="${esc(b.numero)}">Annuler</button>` : ''}</td></tr>`).join('') || vide(8)}</tbody>
+        <td class="keep nowrap"><button class="btn sm" data-action="voir-bon" data-id="${b._id}">Imprimer / PDF</button>${!b.annulee && !b.operationId && peut('caisse.annuler') && !(derniere && b.date <= derniere.date) ? ` <button class="btn sm danger" data-action="bon-annuler" data-id="${b._id}" data-num="${esc(b.numero)}">Annuler</button>` : ''}</td></tr>`).join('') || vide(8)}</tbody>
     </table></div></div>`;
   },
   mount(root) { lierPeriode(root, afficherPage); lierFiltres(root); },
@@ -323,7 +324,7 @@ PAGES.livre = {
 PAGES.controle = {
   async render() {
     const pvs = await api('GET', `/api/pv?${qs(per())}`);
-    return `${tete('Contrôle de caisse', 'Procès-verbaux de contrôle avec billetage et rapprochement', '<span class="write-only"><button class="btn primary" data-action="pv-nouveau">+ Nouveau contrôle de caisse</button></span>')}
+    return `${tete('Contrôle de caisse', 'Procès-verbaux de contrôle avec billetage et rapprochement', '<span data-perm="pv.saisir"><button class="btn primary" data-action="pv-nouveau">+ Nouveau contrôle de caisse</button></span>')}
     ${barrePeriode()}
     <div class="card"><div class="table-wrap"><table class="data">
       <thead><tr><th>N° PV</th><th>Date</th><th>Caissier</th><th>Contrôleur</th><th class="num">Solde théorique</th><th class="num">Encaisse physique</th><th class="num">Écart</th><th></th></tr></thead>
@@ -378,7 +379,7 @@ ACTIONS['pv-nouveau'] = () => {
       try { theo = (await api('GET', `/api/caisse/solde?date=${$('[name=date]', b).value}`)).solde; $('#r-theo', b).textContent = nb(theo); } catch { $('#r-theo', b).textContent = '—'; }
       calc();
     };
-    b.addEventListener('input', calc);
+    $('#f', b).addEventListener('input', calc);
     $('[name=date]', b).addEventListener('change', chargerTheo);
     chargerTheo();
     lierFormulaire($('#f', b), async (d) => {
@@ -402,7 +403,7 @@ PAGES.etats = {
         <button class="btn primary" data-action="etat" data-nom="journal">Afficher · Imprimer · PDF</button></div>
       <div class="etat"><h2>PV de contrôle de caisse</h2><p>Procès-verbal avec billetage, solde théorique, encaisse physique et écart.</p>
         <div class="opts"><label>Procès-verbal<select id="pv-sel">${pvs.map((p) => `<option value="${p._id}">${esc(p.numero)} – ${fd(p.date)}</option>`).join('') || '<option value="">Aucun PV sur la période</option>'}</select></label></div>
-        <div class="actions"><button class="btn primary" data-action="etat" data-nom="pv" ${pvs.length ? '' : 'disabled'}>Afficher · Imprimer · PDF</button><span class="write-only"><button class="btn" data-action="pv-nouveau">Nouveau contrôle</button></span></div></div>
+        <div class="actions"><button class="btn primary" data-action="etat" data-nom="pv" ${pvs.length ? '' : 'disabled'}>Afficher · Imprimer · PDF</button><span data-perm="pv.saisir"><button class="btn" data-action="pv-nouveau">Nouveau contrôle</button></span></div></div>
       <div class="etat"><h2>Plan de trésorerie</h2><p>Encaissements et décaissements mensuels par rubrique, soldes de début et de fin de mois (banques + caisse).</p>
         <div class="opts"><label>Version<select data-f="modeTreso"><option value="realise">Réalisé</option><option value="prevu" ${f.modeTreso === 'prevu' ? 'selected' : ''}>Prévisionnel</option><option value="comparatif" ${f.modeTreso === 'comparatif' ? 'selected' : ''}>Comparatif prévu / réalisé</option></select></label></div>
         <button class="btn primary" data-action="etat" data-nom="tresorerie">Afficher · Imprimer · PDF</button></div>
@@ -432,11 +433,13 @@ PAGES.previsions = {
     this.dirty = false;
     const an = S.filtres.anneePrev || new Date().getFullYear();
     const pv = await api('GET', `/api/previsions/${an}`);
+    const ro = pv.consolide || !peut('previsions.modifier');
     const mois = ['Janv.', 'Févr.', 'Mars', 'Avr.', 'Mai', 'Juin', 'Juil.', 'Août', 'Sept.', 'Oct.', 'Nov.', 'Déc.'];
     const bloc = (titre, cle, cats) => `<tr><td colspan="14" style="background:#f4f6fa"><b>${titre}</b></td></tr>
-      ${cats.map((c) => `<tr data-cle="${cle}" data-cat="${esc(c)}"><td>${esc(c)}</td>${mois.map((_, i) => `<td><input type="number" step="any" value="${((pv[cle] || {})[c] || [])[i] || ''}" ${peutEcrire() ? '' : 'readonly'}></td>`).join('')}<td class="num" data-t></td></tr>`).join('')}`;
+      ${cats.map((c) => `<tr data-cle="${cle}" data-cat="${esc(c)}"><td>${esc(c)}</td>${mois.map((_, i) => `<td><input type="number" step="any" value="${((pv[cle] || {})[c] || [])[i] || ''}" ${ro ? 'readonly' : ''}></td>`).join('')}<td class="num" data-t></td></tr>`).join('')}`;
     return `${tete('Prévisions de trésorerie', 'Montants prévus par mois et par rubrique, utilisés par le plan de trésorerie (versions prévisionnelle et comparative)',
-      `<label style="min-width:120px">Année<input type="number" id="an" value="${an}" min="2000" max="2100"></label><span class="write-only"><button class="btn primary" id="save-prev">Enregistrer</button></span>`)}
+      `<label style="min-width:120px">Année<input type="number" id="an" value="${an}" min="2000" max="2100"></label>${pv.consolide ? '' : '<span data-perm="previsions.modifier"><button class="btn primary" id="save-prev">Enregistrer</button></span>'}`)}
+    ${pv.consolide ? '<div class="card" style="background:#eef2ff;border-color:#c5cae9;margin-bottom:12px">Vue consolidée de toutes les agences (lecture seule). Choisissez une agence en haut du menu pour saisir ses prévisions.</div>' : ''}
     <div class="card"><div class="table-wrap"><table class="data prev"><thead><tr><th>Rubrique</th>${mois.map((m) => `<th class="num">${m}</th>`).join('')}<th class="num">Total</th></tr></thead>
     <tbody>${bloc('Encaissements prévus', 'encaissements', S.params.categoriesEncaissement)}${bloc('Décaissements prévus', 'decaissements', S.params.categoriesDecaissement)}</tbody></table></div></div>`;
   },
@@ -486,7 +489,7 @@ PAGES.parametres = {
         <fieldset class="fieldset"><legend>Monnaie et caisse</legend><div class="form-grid">
           ${ch('devise', 'Devise (abréviation)', p.devise)}${ch('deviseLettres', 'Devise en lettres (pluriel)', p.deviseLettres, false, 'dollars américains, euros…')}${ch('subdivisionLettres', 'Subdivision en lettres (pluriel)', p.subdivisionLettres, false, 'cents, centimes…')}
           <label>Décimales<select name="decimales"><option value="2">2 (ex. USD, EUR)</option><option value="0" ${p.decimales === 0 ? 'selected' : ''}>0 (ex. FCFA)</option></select></label>
-          <label>Solde initial de la caisse<input type="number" step="any" name="soldeInitialCaisse" value="${p.soldeInitialCaisse}"></label>
+          <p class="full muted" style="margin:0;font-size:12.5px">Le solde initial de la caisse se définit pour chaque agence (menu Administration → Agences).</p>
           <label class="full check"><input type="checkbox" name="autoriserDecouvert" ${p.autoriserDecouvert ? 'checked' : ''}> Autoriser le découvert bancaire (solde négatif d'un compte)</label>
         </div></fieldset>
         <fieldset class="fieldset"><legend>Rubriques (une par ligne)</legend><div class="form-grid">
@@ -512,7 +515,7 @@ PAGES.parametres = {
       o.autoriserDecouvert = !!form.autoriserDecouvert.checked;
       o.categoriesEncaissement = String(o.categoriesEncaissement || '').split('\n').map((x) => x.trim()).filter(Boolean);
       o.categoriesDecaissement = String(o.categoriesDecaissement || '').split('\n').map((x) => x.trim()).filter(Boolean);
-      o.decimales = Number(o.decimales); o.soldeInitialCaisse = Number(o.soldeInitialCaisse) || 0;
+      o.decimales = Number(o.decimales);
       return o;
     };
     const apercu = () => {
@@ -551,30 +554,175 @@ PAGES.parametres = {
   },
 };
 
-/* ========================================================= Utilisateurs */
-const ROLES_L = { admin: 'Administrateur', saisie: 'Agent de saisie', lecture: 'Consultation' };
+/* ================================================= Utilisateurs & rôles */
+/* ============================================================ Utilisateurs
+   Deux sortes de comptes : l'administrateur (toutes agences, tous droits) et le responsable d'agence
+   (une agence, avec les permissions cochées ici). */
+const MODELES_DROITS = {
+  complet: { nom: "Gestion complète de l'agence", perms: null },
+  banque: { nom: 'Banque', perms: ['banque.voir', 'banque.saisir', 'fournisseurs.gerer', 'comptes.gerer', 'etats.voir'] },
+  caisse: { nom: 'Caisse', perms: ['caisse.voir', 'caisse.saisir', 'caisse.cloturer', 'pv.voir', 'pv.saisir', 'etats.voir'] },
+  stock: { nom: 'Stock', perms: ['stock.voir', 'stock.saisir', 'stock.transferer', 'stock.pertes', 'stock.inventaire', 'stock.valider', 'stock.etats'] },
+  lecture: { nom: 'Consultation seule', perms: ['banque.voir', 'caisse.voir', 'pv.voir', 'etats.voir', 'previsions.voir', 'stock.voir', 'stock.etats'] },
+};
+const nomAgenceId = (id) => ((S.me.agences || []).find((g) => g._id === id) || {}).nom || '';
+
 PAGES.utilisateurs = {
+  perm: 'utilisateurs.gerer',
   async render() {
-    const us = await api('GET', '/api/utilisateurs');
-    this.us = us;
-    return `${tete('Utilisateurs', 'Administrateur : tout ; Agent de saisie : opérations, caisse, PV ; Consultation : lecture et impression', '<button class="btn primary" data-action="user-edit">+ Nouvel utilisateur</button>')}
-    <div class="card"><div class="table-wrap"><table class="data"><thead><tr><th>Identifiant</th><th>Nom</th><th>Rôle</th><th>Statut</th><th></th></tr></thead>
-    <tbody>${us.map((u) => `<tr><td>${esc(u.identifiant)}</td><td>${esc(u.nom)}</td><td>${ROLES_L[u.role]}</td><td>${u.actif === false ? '<span class="badge">Désactivé</span>' : '<span class="badge in">Actif</span>'}</td><td><button class="btn sm" data-action="user-edit" data-id="${u._id}">Modifier</button></td></tr>`).join('')}</tbody></table></div></div>`;
+    const [us, perms, inst] = await Promise.all([api('GET', '/api/utilisateurs'), api('GET', '/api/permissions/responsable'), fetch('/api/installation').then((r) => r.json()).catch(() => ({}))]);
+    Object.assign(this, { us, perms, adresse: (inst.defaut && inst.defaut.serveurEnLigne) || location.origin });
+    const f = S.filtres;
+    const recherche = (f.userQ || '').toLowerCase();
+    const liste = us.filter((u) => (!f.userAg || (f.userAg === 'admin' ? u.type === 'admin' : u.agenceId === f.userAg))
+      && (!f.userSt || (f.userSt === 'actifs' ? u.actif !== false : u.actif === false))
+      && (!recherche || `${u.nom} ${u.identifiant} ${u.fonction || ''}`.toLowerCase().includes(recherche)));
+    const groupes = [...new Set(perms.map((p) => p.groupe))];
+    const resume = (u) => (u.type === 'admin' ? '<span class="badge int">Tous les droits</span>'
+      : groupes.map((g) => { const t = perms.filter((p) => p.groupe === g); const n = t.filter((p) => u.permissionsEffectives.includes(p.cle)).length; return n ? `<span class="badge ${n === t.length ? 'in' : ''}">${g} ${n}/${t.length}</span>` : ''; }).join(' ') || '<span class="badge out">Aucun droit</span>');
+    const nResp = us.filter((u) => u.type !== 'admin').length;
+    return `${tete('Utilisateurs', "Chaque responsable d'agence ne voit que son agence et ne fait que ce que vous avez coché. L'administrateur voit toutes les agences.",
+      '<span class="actions"><button class="btn primary" data-action="user-edit">+ Nouveau responsable d\'agence</button></span>')}
+    <div class="kpis">
+      <div class="kpi"><div class="lbl">Responsables d'agence</div><div class="val">${nResp}</div><div class="sub">${us.filter((u) => u.type !== 'admin' && u.actif !== false).length} actif(s)</div></div>
+      <div class="kpi"><div class="lbl">Administrateurs</div><div class="val">${us.length - nResp}</div><div class="sub">Toutes agences, tous droits</div></div>
+      <div class="kpi"><div class="lbl">Accès suspendus</div><div class="val">${us.filter((u) => u.actif === false).length}</div><div class="sub">Connexion impossible</div></div>
+    </div>
+    <div class="filters">
+      <label>Agence<select data-f="userAg"><option value="">Toutes</option><option value="admin" ${f.userAg === 'admin' ? 'selected' : ''}>Administrateurs</option>${(S.me.agences || []).map((g) => `<option value="${g._id}" ${f.userAg === g._id ? 'selected' : ''}>${esc(g.nom)}</option>`).join('')}</select></label>
+      <label>Statut<select data-f="userSt"><option value="">Tous</option><option value="actifs" ${f.userSt === 'actifs' ? 'selected' : ''}>Actifs</option><option value="suspendus" ${f.userSt === 'suspendus' ? 'selected' : ''}>Suspendus</option></select></label>
+      <label>Rechercher<input id="user-q" value="${esc(f.userQ || '')}" placeholder="Nom, identifiant…"></label>
+      <span class="periode-lbl">${liste.length} compte(s)</span>
+    </div>
+    <div class="card"><div class="table-wrap"><table class="data">
+      <thead><tr><th>Utilisateur</th><th>Identifiant</th><th>Mot de passe</th><th>Accès</th><th>Permissions</th><th>Statut</th><th>Dernière connexion</th><th></th></tr></thead>
+      <tbody>${liste.map((u) => `<tr class="${u.actif === false ? 'muted' : ''}">
+        <td><b>${esc(u.nom)}</b>${u.fonction ? `<br><small class="muted">${esc(u.fonction)}</small>` : ''}${u.telephone ? `<br><small class="muted">${esc(u.telephone)}</small>` : ''}</td>
+        <td class="nowrap">${esc(u.identifiant)}${u._id === S.me._id ? ' <span class="badge int">vous</span>' : ''}</td>
+        <td class="nowrap"><span class="mdp" data-mdp="${u._id}">••••••••</span> <button class="btn sm" data-action="mdp-voir" data-id="${u._id}">Afficher</button></td>
+        <td>${u.type === 'admin' ? '<span class="badge int">Administrateur</span><br><small class="muted">toutes les agences</small>' : `<span class="badge agence">${esc(nomAgenceId(u.agenceId) || 'Agence ?')}</span><br><small class="muted">Responsable d'agence</small>`}</td>
+        <td class="droits-badges">${resume(u)}</td>
+        <td>${u.actif === false ? '<span class="badge out">Suspendu</span>' : '<span class="badge in">Actif</span>'}${u.doitChanger ? '<br><span class="badge warn">changera son mot de passe</span>' : ''}</td>
+        <td class="nowrap">${u.derniereConnexion ? fdt(u.derniereConnexion) : '<span class="muted">jamais</span>'}</td>
+        <td class="nowrap"><button class="btn sm" data-action="user-edit" data-id="${u._id}">Modifier</button>${u._id === S.me._id ? '' : ` <button class="btn sm" data-action="user-actif" data-id="${u._id}">${u.actif === false ? 'Réactiver' : 'Suspendre'}</button> <button class="btn sm danger" data-action="user-suppr" data-id="${u._id}">Supprimer</button>`}</td></tr>`).join('') || vide(8, 'Aucun compte ne correspond.')}</tbody>
+    </table></div></div>`;
+  },
+  mount(root) {
+    lierFiltres(root);
+    const q = $('#user-q', root);
+    let t = null;
+    q.addEventListener('input', () => { clearTimeout(t); t = setTimeout(async () => { S.filtres.userQ = q.value; await afficherPage(); const n = $('#user-q'); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } }, 250); });
   },
 };
+
+function motDePasseProvisoire() {
+  const c = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+  const a = new Uint32Array(10); crypto.getRandomValues(a);
+  return [...a].map((x) => c[x % c.length]).join('');
+}
+
 ACTIONS['user-edit'] = (ds) => {
-  const u = (PAGES.utilisateurs.us || []).find((x) => x._id === ds.id) || {};
-  ouvrirModale(ds.id ? `Modifier ${u.identifiant}` : 'Nouvel utilisateur', `<form id="f"><div class="form-grid">
-    ${ds.id ? '' : '<label>Identifiant<input name="identifiant" required pattern="[a-zA-Z0-9._-]{3,40}"></label>'}
-    <label>Nom complet<input name="nom" value="${esc(u.nom)}" required></label>
-    <label>Rôle<select name="role">${Object.entries(ROLES_L).map(([k, v]) => `<option value="${k}" ${u.role === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
-    ${ds.id ? `<label>Statut<select name="actif"><option value="1">Actif</option><option value="0" ${u.actif === false ? 'selected' : ''}>Désactivé</option></select></label>` : ''}
-    <label>${ds.id ? 'Nouveau mot de passe (laisser vide pour conserver)' : 'Mot de passe (8 caractères min.)'}<input type="password" name="motDePasse" ${ds.id ? '' : 'required minlength="8"'} autocomplete="new-password"></label>
-  </div>${piedForm()}</form>`, (b) => lierFormulaire($('#f', b), async (d) => {
-    if (ds.id) { d.actif = d.actif === '1'; if (!d.motDePasse) delete d.motDePasse; }
-    await api(ds.id ? 'PUT' : 'POST', ds.id ? `/api/utilisateurs/${ds.id}` : '/api/utilisateurs', d);
-    fermerModale(); toast('Utilisateur enregistré.', 'ok'); afficherPage();
-  }));
+  const pg = PAGES.utilisateurs;
+  const u = (pg.us || []).find((x) => x._id === ds.id) || { type: 'responsable', permissionsEffectives: [] };
+  const moi = u._id === S.me._id;
+  const groupes = [...new Set(pg.perms.map((p) => p.groupe))];
+  const agences = (S.me.agences || []).filter((g) => g.actif || g._id === u.agenceId);
+  const agDefaut = u.agenceId || (S.filtres.userAg && S.filtres.userAg !== 'admin' ? S.filtres.userAg : '') || (agences.length === 1 ? agences[0]._id : '');
+  ouvrirModale(ds.id ? `Accès de ${u.nom}` : "Nouveau responsable d'agence", `<form id="f">
+    <fieldset class="fieldset"><legend>Identité</legend><div class="form-grid">
+      <label>Nom complet<input name="nom" value="${esc(u.nom)}" required></label>
+      <label>Fonction<input name="fonction" value="${esc(u.fonction)}" placeholder="Chef d'agence, gérant…"></label>
+      <label>Téléphone<input name="telephone" value="${esc(u.telephone)}"></label>
+      ${ds.id ? `<label>Identifiant<input value="${esc(u.identifiant)}" disabled></label>` : '<label>Identifiant de connexion<input name="identifiant" autocapitalize="none" autocorrect="off" spellcheck="false" required pattern="[a-zA-Z0-9._\\-]{3,40}" placeholder="ex. jean.kindu"><span class="help">Lettres sans accent, chiffres, point ou tiret.</span></label>'}
+    </div></fieldset>
+    <fieldset class="fieldset"><legend>Accès</legend><div class="form-grid">
+      <label>Type de compte<select name="type" ${moi ? 'disabled' : ''}>
+        <option value="responsable" ${u.type !== 'admin' ? 'selected' : ''}>Responsable d'agence</option>
+        <option value="admin" ${u.type === 'admin' ? 'selected' : ''}>Administrateur (toutes agences)</option></select><span class="help">Le responsable ne voit que son agence et ne fait que ce qui est coché.</span></label>
+      <label id="champ-agence">Agence<select name="agenceId" ${moi ? 'disabled' : ''}><option value="">— Choisir l'agence —</option>${agences.map((g) => `<option value="${g._id}" ${g._id === agDefaut ? 'selected' : ''}>${esc(g.nom)}</option>`).join('')}</select></label>
+      ${ds.id && !moi ? `<label>Statut<select name="actif"><option value="1">Actif</option><option value="0" ${u.actif === false ? 'selected' : ''}>Suspendu (connexion impossible)</option></select></label>` : ''}
+    </div>${moi ? '<p class="muted" style="font-size:12.5px;margin:6px 0 0">Vous ne pouvez pas modifier votre propre accès.</p>' : ''}</fieldset>
+    <fieldset class="fieldset"><legend>${ds.id ? 'Mot de passe (laisser vide pour le conserver)' : 'Mot de passe'}</legend><div class="form-grid">
+      <label>Mot de passe (8 caractères minimum)<input name="motDePasse" id="mdp-prov" ${ds.id ? '' : 'required minlength="8"'} autocomplete="new-password" spellcheck="false" autocapitalize="none"></label>
+      <label>&nbsp;<button type="button" class="btn" id="gen-mdp">Générer un mot de passe</button></label>
+      <label class="full check"><input type="checkbox" name="doitChanger"> Facultatif : lui demander de choisir son propre mot de passe à la première connexion</label>
+    </div></fieldset>
+    <fieldset class="fieldset" id="bloc-perms"><legend>Ce que ce responsable peut faire dans son agence</legend>
+      <div class="modeles"><span class="muted" style="font-size:12.5px;align-self:center">Modèles :</span>${Object.entries(MODELES_DROITS).map(([k, m]) => `<button type="button" class="btn sm" data-modele="${k}">${esc(m.nom)}</button>`).join('')}<button type="button" class="btn sm" data-modele="aucun">Tout décocher</button></div>
+      <div class="perm-grille">${groupes.map((g) => `<fieldset class="fieldset"><legend>${g} <button type="button" class="link" data-tout="${g}" style="font-size:12px;margin-left:6px">tout</button></legend>
+        ${pg.perms.filter((p) => p.groupe === g).map((p) => `<label class="check"><input type="checkbox" name="perm" value="${p.cle}" data-groupe="${g}" ${u.permissionsEffectives.includes(p.cle) ? 'checked' : ''}> ${esc(p.libelle)}</label>`).join('')}
+      </fieldset>`).join('')}</div>
+      <p class="muted" style="font-size:12px;margin:8px 0 0">Les droits prennent effet immédiatement, sur tous ses appareils. Les données des autres agences lui restent toujours invisibles.</p>
+    </fieldset>
+    ${piedForm(ds.id ? 'Enregistrer' : "Créer l'accès")}</form>`, (b) => {
+    const cases = () => $$('input[name=perm]', b);
+    const appliquer = (liste) => cases().forEach((c) => { c.checked = liste === null || liste.includes(c.value); });
+    if (!ds.id) appliquer(null); // nouveau responsable : gestion complète proposée, à ajuster
+    $$('[data-modele]', b).forEach((x) => x.addEventListener('click', () => appliquer(x.dataset.modele === 'aucun' ? [] : MODELES_DROITS[x.dataset.modele].perms)));
+    $$('[data-tout]', b).forEach((x) => x.addEventListener('click', () => {
+      const cs = $$(`input[data-groupe="${x.dataset.tout}"]`, b); const tous = cs.every((c) => c.checked); cs.forEach((c) => { c.checked = !tous; });
+    }));
+    const majType = () => { const adm = $('[name=type]', b).value === 'admin'; $('#bloc-perms', b).hidden = adm; $('#champ-agence', b).hidden = adm; };
+    $('[name=type]', b).addEventListener('change', majType); majType();
+    $('#gen-mdp', b).addEventListener('click', () => { $('#mdp-prov', b).value = motDePasseProvisoire(); });
+    lierFormulaire($('#f', b), async (d) => {
+      const corps = { nom: d.nom, fonction: d.fonction, telephone: d.telephone, doitChanger: !!$('[name=doitChanger]', b).checked };
+      if (!ds.id) corps.identifiant = d.identifiant;
+      if (d.motDePasse) corps.motDePasse = d.motDePasse;
+      if (!moi) {
+        corps.type = d.type;
+        if (d.type !== 'admin') {
+          if (!d.agenceId) throw new Error("Choisissez l'agence du responsable.");
+          corps.agenceId = d.agenceId;
+          corps.permissions = cases().filter((c) => c.checked).map((c) => c.value);
+          if (!corps.permissions.length) throw new Error('Cochez au moins une permission.');
+        }
+        if (d.actif !== undefined) corps.actif = d.actif === '1';
+      }
+      if (d.type === 'admin' && u.type !== 'admin' && !window.confirm(`${d.nom} deviendra administrateur : il verra TOUTES les agences et aura TOUS les droits. Confirmer ?`)) return;
+      const r = await api(ds.id ? 'PUT' : 'POST', ds.id ? `/api/utilisateurs/${ds.id}` : '/api/utilisateurs', corps);
+      fermerModale(); afficherPage();
+      if (!ds.id || d.motDePasse) recapAcces({ nom: d.nom, identifiant: ds.id ? u.identifiant : r.identifiant, motDePasse: d.motDePasse, agence: d.type === 'admin' ? 'toutes les agences' : nomAgenceId(d.agenceId) });
+      else toast('Accès mis à jour : les droits s\'appliquent immédiatement.', 'ok');
+    });
+  });
+};
+/** Récapitulatif à transmettre à la personne (copiable). */
+function recapAcces(x) {
+  const texte = `Gestion des fonds – vos accès\nAgence : ${x.agence}\nAdresse (téléphone ou ordinateur) : ${PAGES.utilisateurs.adresse}\nIdentifiant : ${x.identifiant}\nMot de passe : ${x.motDePasse}`;
+  ouvrirModale(`Accès de ${x.nom}`, `<p style="margin-top:0">Transmettez ces informations à la personne de façon confidentielle. Sur un ordinateur où l'application est installée, elle se connecte avec le même identifiant.</p>
+    <div class="recap-acces" id="recap">${esc(texte)}</div>
+    <div class="form-foot"><button type="button" class="btn" id="copier">Copier</button><button type="button" class="btn primary" data-action="close-modal">Terminé</button></div>`, (b) => {
+    $('#copier', b).addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(texte); toast('Copié.', 'ok'); } catch { const r = document.createRange(); r.selectNodeContents($('#recap', b)); getSelection().removeAllRanges(); getSelection().addRange(r); toast('Texte sélectionné : faites Ctrl+C.', 'ok'); }
+    });
+  });
+}
+
+ACTIONS['user-actif'] = async (ds) => {
+  const u = (PAGES.utilisateurs.us || []).find((x) => x._id === ds.id);
+  if (!u) return;
+  const suspendre = u.actif !== false;
+  if (suspendre && !window.confirm(`Suspendre l'accès de ${u.nom} ? Il est déconnecté immédiatement sur tous ses appareils.`)) return;
+  try { await api('PUT', `/api/utilisateurs/${ds.id}`, { actif: !suspendre }); toast(suspendre ? 'Accès suspendu.' : 'Accès rétabli.', 'ok'); } catch (x) { toast(x.message, 'err'); }
+  afficherPage();
+};
+
+ACTIONS['mdp-voir'] = async (ds, el) => {
+  const span = $(`[data-mdp="${ds.id}"]`);
+  if (el.dataset.visible) { span.textContent = '••••••••'; el.textContent = 'Afficher'; delete el.dataset.visible; return; }
+  try {
+    const r = await api('GET', `/api/utilisateurs/${ds.id}/mot-de-passe`);
+    span.textContent = r.motDePasse; span.style.fontFamily = 'ui-monospace, Consolas, monospace'; el.textContent = 'Masquer'; el.dataset.visible = '1';
+  } catch (x) { toast(x.message, 'err'); }
+};
+
+ACTIONS['user-suppr'] = async (ds) => {
+  const u = (PAGES.utilisateurs.us || []).find((x) => x._id === ds.id);
+  if (!u) return;
+  if (!window.confirm(`Supprimer définitivement le compte de ${u.nom} (${u.identifiant}) ?\n\nLa personne ne pourra plus se connecter, sur aucun ordinateur ni mobile. L'historique de ses opérations est conservé.`)) return;
+  try { await api('POST', `/api/utilisateurs/${ds.id}/supprimer`); toast(`Compte ${u.identifiant} supprimé.`, 'ok'); } catch (x) { toast(x.message, 'err'); }
+  afficherPage();
 };
 
 /* ======================================================= Journal d'audit */
@@ -594,14 +742,14 @@ PAGES.stockage = {
   async render() {
     const e = await api('GET', '/api/stockage');
     this.dirty = false;
-    const cfg = estAdmin() && ['double', 'local'].includes(e.mode) ? await api('GET', '/api/stockage/config') : null;
+    const cfg = peut('stockage.gerer') && ['double', 'local'].includes(e.mode) ? await api('GET', '/api/stockage/config') : null;
     this.cfg = cfg;
     S.stockage = e;
     const [cls, txt] = libelleStockage(e);
     const pCloud = e.cloud === 'desactive' ? '' : e.enLigne ? (e.enAttente ? 'warn' : 'ok') : 'err';
     const quand = (x) => (x ? fdt(x) : '—');
-    return `${tete('Stockage & synchronisation', e.cloud === 'desactive' ? 'Les données sont enregistrées sur ce PC. Paramétrez la connexion cloud pour en garder aussi une copie dans MongoDB Atlas.' : 'Double stockage : chaque opération est enregistrée sur ce PC puis recopiée dans MongoDB Atlas',
-      `${e.cloud !== 'desactive' ? '<span class="write-only"><button class="btn primary" data-action="sync-maintenant">Synchroniser maintenant</button></span>' : ''}${estAdmin() ? '<a class="btn" href="/api/stockage/sauvegarde">Télécharger une sauvegarde</a>' : ''}`)}
+    return `${tete('Stockage & synchronisation', e.cloud === 'desactive' ? 'Cet ordinateur n\'est pas encore relié au cloud : il se relie automatiquement à la prochaine connexion d\'un utilisateur.' : 'Cloud prioritaire : chaque enregistrement part aussitôt dans le cloud et arrive en temps réel sur les autres appareils. Sans connexion, il attend sur ce PC et part dès le retour du réseau.',
+      `${e.cloud !== 'desactive' ? '<span data-perm="stockage.gerer"><button class="btn primary" data-action="sync-maintenant">Synchroniser maintenant</button></span>' : ''}${peut('stockage.gerer') ? '<a class="btn" href="/api/stockage/sauvegarde">Télécharger une sauvegarde</a>' : ''}`)}
     <div class="etat-grille">
       <div class="card"><h2><span class="pastille ${e.local && e.local.ok ? 'ok' : ''}"></span>Stockage local (ce PC)</h2>
         <dl class="kv2" style="margin-top:10px">
@@ -609,15 +757,16 @@ PAGES.stockage = {
           ${e.local && e.local.dossier ? `<dt>Dossier</dt><dd>${esc(e.local.dossier)}</dd><dt>Documents</dt><dd>${e.local.documents}</dd><dt>Sauvegardes</dt><dd>Copie automatique quotidienne (30 jours) dans « sauvegardes »</dd>` : ''}
           ${e.poste ? `<dt>Code du poste</dt><dd>${esc(e.poste)}</dd>` : ''}
         </dl></div>
-      <div class="card"><h2><span class="pastille ${pCloud}"></span>Stockage cloud (MongoDB Atlas)</h2>
+      <div class="card"><h2><span class="pastille ${pCloud}"></span>Cloud (MongoDB Atlas) – prioritaire</h2>
         <dl class="kv2" style="margin-top:10px">
-          <dt>État</dt><dd>${esc(txt.replace('Local ✓ · ', ''))}</dd>
+          <dt>État</dt><dd>${esc(txt)}</dd>
+          <dt>Liaison</dt><dd>${e.liaison === 'serveur' ? `Par le serveur en ligne${e.relais && e.relais.utilisateur ? ` (relié par le compte ${esc(e.relais.utilisateur)})` : ''}` : e.liaison === 'atlas' ? 'Directe (MongoDB Atlas)' : e.mode === 'cloud' ? 'Serveur en ligne' : 'Aucune pour l\'instant'}</dd>
           ${e.cloud !== 'desactive' ? `<dt>En attente d'envoi</dt><dd>${e.enAttente} document(s)</dd>
           <dt>Dernier envoi</dt><dd>${quand(e.dernierEnvoi)}</dd><dt>Dernière réception</dt><dd>${quand(e.derniereReception)}</dd>
-          ${e.erreur && !e.enLigne ? `<dt>Dernière erreur</dt><dd class="neg">${esc(e.erreur)}</dd>` : ''}` : `<dt>Activer</dt><dd>${estAdmin() ? 'Utilisez le paramétrage de la connexion cloud ci-dessous.' : 'Demandez à l\'administrateur de paramétrer la connexion cloud.'}</dd>`}
+          ${e.erreur && !e.enLigne ? `<dt>Dernière erreur</dt><dd class="neg">${esc(e.erreur)}</dd>` : ''}` : `<dt>Activer</dt><dd>${peut('stockage.gerer') ? 'Utilisez le paramétrage de la connexion cloud ci-dessous.' : 'Demandez à l\'administrateur de paramétrer la connexion cloud.'}</dd>`}
         </dl></div>
     </div>
-    ${cfg ? `<div class="card" style="margin-bottom:16px"><div class="card-head"><h2>Paramétrage de la connexion cloud</h2>${cfg.active ? '<span class="badge in">Activée</span>' : '<span class="badge">Non activée – stockage local uniquement</span>'}</div>
+    ${cfg ? `<div class="card" style="margin-bottom:16px"><div class="card-head"><h2>Liaison directe à MongoDB Atlas (facultatif)</h2>${cfg.active ? '<span class="badge in">Activée</span>' : '<span class="badge">Non activée – stockage local uniquement</span>'}</div>
       <form id="f-cloud" autocomplete="off"><div class="form-grid">
         <label class="full">Adresse du cluster<input name="hote" value="${esc(cfg.hote)}" placeholder="cluster0.xxxxx.mongodb.net" spellcheck="false" autocomplete="off" required>
           <span class="help">Dans Atlas : Database → Connect → Drivers ; c'est la partie après « @ » (vous pouvez aussi coller la chaîne complète).</span></label>
@@ -632,17 +781,18 @@ PAGES.stockage = {
         <button type="button" class="btn" data-action="cloud-tester">Tester la connexion</button>
         <button type="submit" class="btn primary">${cfg.active ? 'Enregistrer' : 'Enregistrer et activer'}</button>
       </div></form>
-      <p class="muted" style="font-size:12px;margin:8px 0 0">Les réglages sont enregistrés dans ${esc(cfg.fichier)}. À l'activation, les données déjà saisies sur ce PC sont envoyées automatiquement vers le cloud, et celles du cloud sont récupérées.</p>
+      <p class="muted" style="font-size:12px;margin:8px 0 0">Inutile en temps normal : chaque ordinateur se relie au cloud par le serveur en ligne dès qu'un utilisateur s'y connecte. Les réglages sont enregistrés dans ${esc(cfg.fichier)}. À l'activation, les données déjà saisies sur ce PC sont envoyées automatiquement vers le cloud, et celles du cloud sont récupérées.</p>
     </div>` : ''}
     <div class="card"><h3>Fonctionnement</h3>
       <ul style="margin:0;padding-left:18px;line-height:1.7;color:var(--muted)">
-        <li>Sans Internet, l'application continue de fonctionner normalement sur les données locales ; les opérations sont mises en file d'attente et envoyées automatiquement au retour de la connexion.</li>
-        <li>Les opérations saisies sur les autres postes arrivent en temps réel par le cloud.</li>
+        <li>Le cloud est prioritaire : chaque enregistrement est envoyé immédiatement et n'est confirmé qu'une fois arrivé dans le cloud.</li>
+        <li>Sans Internet, l'application continue de fonctionner sur la copie locale ; les enregistrements attendent sur ce PC (message à l'écran) et partent automatiquement au retour de la connexion.</li>
+        <li>Les enregistrements des autres ordinateurs et des téléphones arrivent en temps réel (une à deux secondes).</li>
         <li>En ligne, les numéros (BQ, OV, BEC, BSC, PV) sont attribués par le cloud et sont uniques pour tous les postes. Hors ligne, ils contiennent le code du poste (ex. BQ-2026-${esc(e.poste || 'P1')}-0001) pour rester uniques.</li>
         <li>Nouveau PC ou PC réinstallé : au premier lancement, toutes les données sont récupérées depuis le cloud.</li>
         <li>Cloud perdu ou nouveau cluster : « Renvoyer toutes les données vers le cloud » le reconstruit à partir de ce PC.</li>
       </ul>
-      ${estAdmin() && e.mode === 'double' && e.cloud !== 'desactive' ? '<div class="actions" style="margin-top:12px"><button class="btn" data-action="sync-renvoyer">Renvoyer toutes les données vers le cloud</button></div>' : ''}
+      ${peut('stockage.gerer') && e.mode === 'double' && e.cloud !== 'desactive' ? '<div class="actions" style="margin-top:12px"><button class="btn" data-action="sync-renvoyer">Renvoyer toutes les données vers le cloud</button></div>' : ''}
     </div>
     ${e.conflits && e.conflits.length ? `<div class="card"><h3>Conflits signalés</h3><table class="data"><thead><tr><th>Date</th><th>Collection</th><th>Document</th><th>Motif</th></tr></thead><tbody>${e.conflits.map((c) => `<tr><td>${fdt(c.quand)}</td><td>${esc(c.collection)}</td><td>${esc(c.id)}</td><td>${esc(c.motif)}</td></tr>`).join('')}</tbody></table></div>` : ''}`;
   },
@@ -681,4 +831,56 @@ ACTIONS['sync-renvoyer'] = async () => {
   if (!window.confirm('Remettre toutes les données de ce PC dans la file d\'envoi vers le cloud ?')) return;
   try { const r = await api('POST', '/api/stockage/renvoyer'); toast(`${r.renvoyes} documents mis en file d'envoi.`, 'ok'); } catch (x) { toast(x.message, 'err'); }
   majStockage(); afficherPage();
+};
+
+/* Permissions requises par écran (au moins une) */
+Object.assign(PAGES.banque, { perm: 'banque.voir' });
+Object.assign(PAGES.ordres, { perm: 'banque.voir' });
+Object.assign(PAGES.fournisseurs, { perm: 'banque.voir,fournisseurs.gerer' });
+Object.assign(PAGES.comptes, { perm: 'banque.voir,comptes.gerer' });
+Object.assign(PAGES.caisse, { perm: 'caisse.voir' });
+Object.assign(PAGES.livre, { perm: 'caisse.voir,etats.voir' });
+Object.assign(PAGES.controle, { perm: 'pv.voir,pv.saisir' });
+Object.assign(PAGES.etats, { perm: 'etats.voir' });
+Object.assign(PAGES.previsions, { perm: 'previsions.voir' });
+Object.assign(PAGES.parametres, { perm: 'parametres.gerer' });
+Object.assign(PAGES.audit, { perm: 'audit.voir' });
+
+/* ============================================================== Agences */
+PAGES.agences = {
+  perm: 'agences.gerer',
+  async render() {
+    const [ags, us] = await Promise.all([api('GET', '/api/agences'), peut('utilisateurs.gerer') ? api('GET', '/api/utilisateurs') : Promise.resolve([])]);
+    this.ags = ags;
+    return `${tete('Agences', "Chaque agence a sa propre caisse, ses comptes bancaires, son stock et ses états. Un responsable d'agence ne voit que les données de son agence.",
+      '<button class="btn primary" data-action="agence-edit">+ Nouvelle agence</button>')}
+    <div class="card"><div class="table-wrap"><table class="data">
+      <thead><tr><th>Code</th><th>Agence</th><th>Ville / adresse</th><th>Responsable</th><th class="num">Solde initial caisse</th><th class="num">Utilisateurs</th><th>Statut</th><th></th></tr></thead>
+      <tbody>${ags.map((g) => `<tr class="${g.actif === false ? 'muted' : ''}"><td class="nowrap"><b>${esc(g.code)}</b></td><td>${esc(g.nom)}</td><td>${esc([g.ville, g.adresse].filter(Boolean).join(' – '))}${g.telephone ? `<br><small class="muted">${esc(g.telephone)}</small>` : ''}</td>
+        <td>${esc(g.responsable || '')}</td><td class="num">${nb(g.soldeInitialCaisse || 0)}</td><td class="num">${us.filter((u) => u.agenceId === g._id).length}</td>
+        <td>${g.actif === false ? '<span class="badge">Inactive</span>' : '<span class="badge in">Active</span>'}</td>
+        <td class="nowrap"><button class="btn sm" data-action="agence-edit" data-id="${g._id}">Modifier</button> <button class="btn sm" data-action="agence-voir" data-id="${g._id}">Ouvrir</button></td></tr>`).join('') || vide(8, 'Aucune agence.')}</tbody>
+    </table></div></div>
+    <p class="muted" style="font-size:12.5px">Pour donner un accès à un responsable d'agence : menu Utilisateurs → « Nouveau responsable d'agence » : choisissez l'agence et cochez ce qu'il peut faire.</p>`;
+  },
+};
+ACTIONS['agence-voir'] = (ds) => { changerAgence(ds.id).then(() => { location.hash = '#/tableau'; }); majSelecteurAgence(); };
+ACTIONS['agence-edit'] = (ds) => {
+  const g = ((PAGES.agences.ags) || []).find((x) => x._id === ds.id) || {};
+  ouvrirModale(ds.id ? `Agence ${g.nom}` : 'Nouvelle agence', `<form id="f"><div class="form-grid">
+    <label>Code (court, unique)<input name="code" value="${esc(g.code)}" required maxlength="12" placeholder="KIN, LUB…" style="text-transform:uppercase"></label>
+    <label>Nom de l'agence<input name="nom" value="${esc(g.nom)}" required></label>
+    <label>Ville<input name="ville" value="${esc(g.ville)}"></label>
+    <label>Téléphone<input name="telephone" value="${esc(g.telephone)}"></label>
+    <label class="full">Adresse<input name="adresse" value="${esc(g.adresse)}"></label>
+    <label>Responsable (nom)<input name="responsable" value="${esc(g.responsable)}"></label>
+    <label>Solde initial de la caisse (${esc(S.params.devise)})<input type="number" step="any" name="soldeInitialCaisse" value="${g.soldeInitialCaisse || 0}"><span class="help">Figé dès que la caisse de l'agence a des mouvements.</span></label>
+    ${ds.id ? `<label>Statut<select name="actif"><option value="1">Active</option><option value="0" ${g.actif === false ? 'selected' : ''}>Inactive</option></select></label>` : ''}
+  </div>${piedForm()}</form>`, (b) => lierFormulaire($('#f', b), async (d) => {
+    if (d.actif !== undefined) d.actif = d.actif === '1';
+    d.soldeInitialCaisse = Number(d.soldeInitialCaisse) || 0;
+    await api(ds.id ? 'PUT' : 'POST', ds.id ? `/api/agences/${ds.id}` : '/api/agences', d);
+    S.me = await api('GET', '/api/me'); majSelecteurAgence();
+    fermerModale(); toast('Agence enregistrée.', 'ok'); afficherPage();
+  }));
 };
