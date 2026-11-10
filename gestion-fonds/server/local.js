@@ -56,6 +56,8 @@ class LocalStore extends MemoryStore {
         rejouees += 1;
       }
     }
+    // Données en attente d'envoi d'une collection qui n'existe plus (ancienne version) : abandonnées.
+    for (const [k, e] of this.outbox) if (!this.data[e.col]) this.outbox.delete(k);
     this._compacter();
     console.log(`Stockage local : ${this.dossier} (${this.compter()} documents${rejouees ? `, ${rejouees} transaction(s) récupérée(s) du journal` : ''})`);
   }
@@ -99,6 +101,7 @@ class LocalStore extends MemoryStore {
   /* ------------------------------------------------------------ rejeu */
   _poser(col, id, doc) {
     const arr = this.data[col];
+    if (!arr) return; // collection d'une ancienne version (ex. ancienne gestion de stock) : ignorée
     const i = arr.findIndex((d) => d._id === id);
     if (doc) { if (i >= 0) arr[i] = doc; else arr.push(doc); } else if (i >= 0) arr.splice(i, 1);
   }

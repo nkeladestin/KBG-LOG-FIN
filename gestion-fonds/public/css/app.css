@@ -379,3 +379,51 @@ table.dt tr { break-inside: avoid; }
 .acces-boite p { margin: 0 0 10px; line-height: 1.5; }
 .acces-icone { font-size: 36px; }
 body.suspendu #app { filter: blur(3px); pointer-events: none; user-select: none; }
+
+/* ---------------------------------------------- Stock par bons de commande */
+.nav-badge { display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 4px; border-radius: 9px; background: #d64545; color: #fff; font-size: 11px; font-weight: 700; text-align: center; line-height: 18px; }
+.nav-badge[hidden] { display: none; }
+.modal { grid-template-columns: minmax(0, 1fr); }
+.modal-box { min-width: 0; max-width: 100%; }
+.modal-box.large { width: min(1180px, 100%); }
+.avancement { display: inline-block; width: 80px; height: 7px; border-radius: 4px; background: #e6e9ef; overflow: hidden; vertical-align: middle; margin-right: 6px; }
+.avancement span { display: block; height: 100%; background: var(--green); }
+.alerte-stock { border-color: #f0a43a; background: #fff8ec; margin-bottom: 12px; line-height: 1.9; }
+.alerte-stock.danger { border-color: #e5a29b; background: #fdecea; }
+.alerte-stock .puce { display: inline-block; background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 0 8px; margin: 2px 4px 2px 0; font-size: 12.5px; line-height: 1.8; }
+.grille-etat td.cel-bon b { display: block; }
+.grille-etat td.cel-bon small { display: block; color: var(--muted); font-size: 11px; white-space: nowrap; }
+.grille-etat td.cel-bon.solde b { color: var(--green); }
+.grille-etat th small, .grille-bon th small { font-weight: 400; color: var(--muted); }
+.grille-bon-wrap { max-height: 55vh; overflow: auto; margin: 8px 0; border: 1px solid var(--line); border-radius: 8px; }
+.grille-bon { min-width: 100%; }
+.grille-bon thead th { position: sticky; top: 0; background: #f7f8fa; z-index: 1; }
+.grille-bon td { padding: 3px 4px; }
+.grille-bon input { width: 72px; padding: 5px 6px; text-align: right; }
+.bon-outils, .bon-ajout { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+.bon-outils details { flex: 1; }
+.bon-outils summary { cursor: pointer; color: var(--accent); font-weight: 600; }
+.bon-ajout select { max-width: 320px; }
+.choix-articles { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 8px 0; }
+.choix-articles .check { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; }
+.collage { border: 1px dashed var(--accent); border-radius: 8px; padding: 10px; margin: 8px 0; width: 100%; background: #f7f9ff; }
+.collage textarea { width: 100%; font-family: monospace; font-size: 12px; }
+tr.barre td { text-decoration: line-through; text-decoration-color: rgba(0,0,0,.25); }
+tr.barre td:last-child { text-decoration: none; }
+.feuille .exemplaire { text-align: right; font-size: 10px; color: #777; margin-top: 6px; }
+.feuille .dt.petit { font-size: 7.5pt; width: 100%; table-layout: fixed; }
+.feuille .dt.petit th, .feuille .dt.petit td { padding: 2px 3px; overflow-wrap: anywhere; white-space: normal; }
+.feuille .dt.petit th:first-child, .feuille .dt.petit td:first-child { width: 24mm; }
+.feuille .dt.petit small { font-size: 6.5pt; }
+@media (max-width: 760px) {
+  .grille-bon input { width: 60px; }
+  .modal-box.large { width: 100%; }
+}
+.table-livraison input, .table-saisie input { width: 90px; text-align: right; }
+@media (max-width: 760px) {
+  .table-livraison .col-sec { display: none; }
+  .table-livraison input { width: 64px; }
+  .table-livraison td, .table-livraison th { padding: 6px 5px; }
+}
+.champ-ajout { display: flex; gap: 6px; }
+.champ-ajout select { flex: 1; min-width: 0; }

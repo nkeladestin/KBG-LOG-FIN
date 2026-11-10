@@ -32,9 +32,9 @@ const { createAuth, verifier: verifierMdp } = require('./auth');
 const { createDroits, PERMISSIONS, CLES, CLES_RESPONSABLE, CENTRALES } = require('./droits');
 const miseAJour = require('./miseajour');
 const { dansAgence, vueAgence, migrerAgences } = require('./agences');
-const { createStock } = require('./stock');
+const { createCommandes } = require('./commandes');
 
-const VERSION = '2026.11.10-15'; // à chaque livraison : le PC compare avec le serveur en ligne
+const VERSION = '2026.11.10-18'; // à chaque livraison : le PC compare avec le serveur en ligne
 const PORT = Number(process.env.PORT || 3000);
 // Sur un hébergeur (Render, Railway…), le mode cloud est utilisé par défaut.
 const MODE = (process.env.DB_MODE || (process.env.RENDER || process.env.RAILWAY_ENVIRONMENT ? 'cloud' : 'double')).toLowerCase(); // double | cloud | memory
@@ -283,7 +283,7 @@ async function demarrer() {
   const donnees = vueAgence(() => store);
   const svc = createServices(donnees, broadcast);
   const rep = createReports(donnees, svc);
-  const stock = createStock({ store, donnees, svc, broadcast });
+  const stock = createCommandes({ store, donnees, svc, broadcast });
   const auth = createAuth(store, secret);
   store.watch((ev) => { if (ev.collection !== 'audit' && ev.collection !== 'compteurs') broadcast(ev.collection); });
   /*
@@ -330,17 +330,9 @@ async function demarrer() {
   await stock.initialiser();
   const rattachees = await migrerAgences(store);
   if (rattachees) console.log(`Agences : ${rattachees} donnée(s) existante(s) rattachée(s) à l'agence « Siège ».`);
-  // Contrôles automatiques du stock : lots périmés (valorisés en perte) et instantané quotidien de la valeur.
-  const tachesStock = async () => {
-    try {
-      await migrerAgences(store);
-      const n = await stock.detecterPerimes();
-      if (n) console.log(`[stock] ${n} lot(s) arrivé(s) à péremption : bloqués et valorisés en perte.`);
-      await stock.enregistrerInstantanes();
-    } catch (e) { console.error('[stock] Contrôle automatique :', e.message); }
-  };
-  setTimeout(tachesStock, 3000).unref();
-  setInterval(tachesStock, 10 * 60000).unref();
+  // Remplacement de l'ancienne gestion de stock (base en ligne, une seule fois) et rattachement régulier aux agences.
+  if (MODE === 'cloud') await stock.effacerAncienStock().catch((e) => console.error('[stock]', e.message));
+  setInterval(() => migrerAgences(store).catch((e) => console.error('[agences]', e.message)), 10 * 60000).unref();
   // Les comptes créés par l'administrateur gardent le mot de passe qu'il a fixé (correction unique des anciens comptes).
   const params = await store.col('parametres').findOne({ _id: 'migrations' });
   if (!params || !params.mdpSansChangementForce) {
@@ -419,44 +411,40 @@ async function demarrer() {
 
   /* -------------------------------------------------------------- Stock */
   const per = (q) => periode(q, svc);
-  r('GET', '/api/stock/categories', null, () => stock.categories());
-  r('POST', '/api/stock/categories', 'stock.articles', ({ user, body }) => { exigerSiege(user); return stock.enregistrerCategorie(user, body); });
-  r('PUT', '/api/stock/categories/:id', 'stock.articles', ({ user, body, p }) => { exigerSiege(user); return stock.enregistrerCategorie(user, body, p.id); });
-  r('GET', '/api/stock/articles', null, () => stock.articles());
-  r('POST', '/api/stock/articles', 'stock.articles', ({ user, body }) => { exigerSiege(user); return stock.enregistrerArticle(user, body); });
-  r('PUT', '/api/stock/articles/:id', 'stock.articles', ({ user, body, p }) => { exigerSiege(user); return stock.enregistrerArticle(user, body, p.id); });
-  r('PUT', '/api/stock/articles/:id/seuils', ['stock.articles', 'stock.valider'], ({ user, body, p }) => stock.definirSeuils(user, p.id, body));
-  r('GET', '/api/stock/tableau', 'stock.voir', () => stock.tableau());
-  r('GET', '/api/stock/situation', 'stock.voir', () => stock.situation());
-  r('GET', '/api/stock/lots', 'stock.voir', ({ q }) => stock.listeLots(Object.fromEntries(q)));
-  r('GET', '/api/stock/lots/:id', 'stock.voir', ({ p }) => stock.ficheLot(p.id));
-  r('POST', '/api/stock/lots/:id/statut', 'stock.valider', ({ user, body, p }) => stock.changerStatut(user, p.id, body));
-  r('POST', '/api/stock/lots/:id/sortie-perime', 'stock.valider', ({ user, body, p }) => stock.sortirPerime(user, p.id, body));
-  r('POST', '/api/stock/receptions', 'stock.saisir', ({ user, body }) => stock.reception(user, body));
-  r('POST', '/api/stock/sorties', 'stock.saisir', ({ user, body }) => stock.sortie(user, body));
-  r('GET', '/api/stock/mouvements', 'stock.voir', ({ q }) => stock.listeMouvements({ ...per(q), type: q.get('type') || '', articleId: q.get('articleId') || '' }));
+  /* ------------------------------------------- Stock par bons de commande */
+  const fStock = (q) => ({ ...Object.fromEntries(q), ouverts: q.get('ouverts') === '1' });
+  r('GET', '/api/stock/referentiel', null, () => stock.referentiel());
+  r('POST', '/api/stock/articles', 'stock.referentiel', ({ user, body }) => stock.enregistrerArticle(user, body));
+  r('PUT', '/api/stock/articles/:id', 'stock.referentiel', ({ user, body, p }) => stock.enregistrerArticle(user, body, p.id));
+  r('GET', '/api/stock/articles/:id/utilisations', 'stock.referentiel', ({ p }) => stock.utilisationsArticle(p.id));
+  r('POST', '/api/stock/articles/:id/supprimer', 'stock.referentiel', ({ user, p }) => stock.supprimerArticle(user, p.id));
+  r('POST', '/api/stock/regions', 'stock.referentiel', ({ user, body }) => stock.enregistrerRegion(user, body));
+  r('PUT', '/api/stock/regions/:id', 'stock.referentiel', ({ user, body, p }) => stock.enregistrerRegion(user, body, p.id));
+  r('POST', '/api/stock/unites', ['stock.referentiel', 'stock.bons'], ({ user, body }) => stock.enregistrerUnite(user, body));
+  r('PUT', '/api/stock/unites/:id', 'stock.referentiel', ({ user, body, p }) => stock.enregistrerUnite(user, body, p.id));
+  r('POST', '/api/stock/types', 'stock.referentiel', ({ user, body }) => stock.enregistrerType(user, body));
+  r('PUT', '/api/stock/types/:id', 'stock.referentiel', ({ user, body, p }) => stock.enregistrerType(user, body, p.id));
+  r('GET', '/api/stock/types/:id/utilisations', 'stock.referentiel', ({ p }) => stock.utilisationsType(p.id));
+  r('POST', '/api/stock/types/:id/supprimer', 'stock.referentiel', ({ user, p }) => stock.supprimerType(user, p.id));
+  r('GET', '/api/stock/bons', 'stock.voir', ({ q }) => stock.listeBons(Object.fromEntries(q)));
+  r('GET', '/api/stock/bons/:id', 'stock.voir', ({ p }) => stock.bon(p.id));
+  r('POST', '/api/stock/bons', 'stock.bons', ({ user, body }) => stock.creerBon(user, body));
+  r('PUT', '/api/stock/bons/:id', 'stock.bons', ({ user, body, p }) => stock.modifierBon(user, p.id, body));
+  r('POST', '/api/stock/bons/:id/statut', 'stock.bons', ({ user, body, p }) => stock.changerStatutBon(user, p.id, body));
+  r('GET', '/api/stock/bons/:id/livraison/:unite', 'stock.livrer', ({ p }) => stock.preparerLivraison(p.id, p.unite));
+  r('GET', '/api/stock/livraisons', 'stock.voir', ({ q }) => stock.listeLivraisons(Object.fromEntries(q)));
+  r('GET', '/api/stock/livraisons/:id', 'stock.voir', ({ p }) => stock.livraison(p.id));
+  r('POST', '/api/stock/livraisons', 'stock.livrer', ({ user, body }) => stock.livrer(user, body));
+  r('POST', '/api/stock/livraisons/:id/signature', 'stock.livrer', ({ user, body, p }) => stock.signerLivraison(user, p.id, body));
+  r('POST', '/api/stock/livraisons/:id/annuler', 'stock.corriger', ({ user, body, p }) => stock.annulerLivraison(user, p.id, body));
+  r('POST', '/api/stock/entrees', 'stock.entrees', ({ user, body }) => stock.entree(user, body));
+  r('POST', '/api/stock/ajustements', 'stock.corriger', ({ user, body }) => stock.ajuster(user, body));
+  r('POST', '/api/stock/mouvements/:id/annuler', 'stock.corriger', ({ user, body, p }) => stock.annulerEntree(user, p.id, body));
+  r('GET', '/api/stock/mouvements', 'stock.voir', ({ q }) => stock.listeMouvements(Object.fromEntries(q)));
   r('GET', '/api/stock/mouvements/:id', 'stock.voir', ({ p }) => stock.mouvement(p.id));
-  r('GET', '/api/stock/pertes', ['stock.voir', 'stock.pertes'], ({ q }) => stock.listePertes({ statut: q.get('statut') || '' }));
-  r('POST', '/api/stock/pertes', 'stock.pertes', ({ user, body }) => stock.declarerPerte(user, body));
-  r('POST', '/api/stock/pertes/:id/decision', 'stock.valider', ({ user, body, p }) => stock.deciderPerte(user, p.id, body));
-  r('GET', '/api/stock/transferts', 'stock.voir', ({ q }) => stock.listeTransferts(q.get('statut') || ''));
-  r('GET', '/api/stock/transferts/:id', 'stock.voir', ({ p }) => stock.transfert(p.id));
-  r('POST', '/api/stock/transferts', 'stock.transferer', ({ user, body }) => stock.creerTransfert(user, body));
-  r('POST', '/api/stock/transferts/:id/recevoir', 'stock.transferer', ({ user, body, p }) => stock.recevoirTransfert(user, p.id, body));
-  r('POST', '/api/stock/transferts/:id/annuler', 'stock.transferer', ({ user, body, p }) => stock.annulerTransfert(user, p.id, body));
-  r('GET', '/api/stock/inventaires', ['stock.voir', 'stock.inventaire'], () => stock.listeInventaires());
-  r('GET', '/api/stock/inventaires/:id', ['stock.voir', 'stock.inventaire'], ({ user, p }) => stock.inventaire(p.id, user));
-  r('POST', '/api/stock/inventaires', 'stock.inventaire', ({ user, body }) => stock.creerInventaire(user, body));
-  r('PUT', '/api/stock/inventaires/:id/comptages', 'stock.inventaire', ({ user, body, p }) => stock.saisirComptages(user, p.id, body));
-  r('POST', '/api/stock/inventaires/:id/valider', 'stock.valider', ({ user, p }) => stock.validerInventaire(user, p.id));
-  r('POST', '/api/stock/inventaires/:id/abandonner', 'stock.valider', ({ user, p }) => stock.annulerInventaire(user, p.id));
-  r('GET', '/api/stock/etats/valeur', 'stock.etats', ({ q }) => stock.etatValeur(q.get('date')));
-  r('GET', '/api/stock/etats/pertes-peremption', 'stock.etats', ({ q }) => stock.etatPertesPeremption(q.get('date')));
-  r('GET', '/api/stock/etats/peremptions', 'stock.etats', ({ q }) => stock.etatPeremptions(q.get('date'), Math.max(30, Number(q.get('dormant')) || 90)));
-  r('GET', '/api/stock/etats/pertes', 'stock.etats', ({ q }) => { const { debut, fin } = per(q); return stock.etatPertes(debut, fin); });
-  r('GET', '/api/stock/etats/situation', 'stock.etats', () => stock.situation());
-  r('GET', '/api/stock/etats/historique', 'stock.etats', ({ q }) => { const { debut, fin } = per(q); return stock.historiqueValeur(debut, fin); });
-  r('GET', '/api/stock/referentiel', null, () => ({ motifs: stock.MOTIFS_PERTE, natures: stock.NATURES_SORTIE, modes: stock.MODES_PERIME, statuts: stock.STATUTS }));
+  r('GET', '/api/stock/situation', 'stock.voir', () => stock.situation());
+  r('GET', '/api/stock/alertes', 'stock.voir', () => stock.alertes());
+  r('GET', '/api/stock/consolidation', ['stock.etats', 'stock.voir'], ({ q }) => stock.consolidation(fStock(q)));
   r('POST', '/api/me/mot-de-passe', null, async ({ user, body }) => {
     const u = await auth.connecter(user.identifiant, body.ancien);
     if (!u || u.suspendu) throw new ErreurMetier('Mot de passe actuel incorrect.');

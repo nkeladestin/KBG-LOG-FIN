@@ -19,9 +19,10 @@ function exigerComptes() {
 /* ======================================================= Tableau de bord */
 PAGES.tableau = {
   async render() {
-    const d = await api('GET', '/api/tableau-de-bord');
+    const [d, alertesStock] = await Promise.all([api('GET', '/api/tableau-de-bord'), peut('stock.voir') ? api('GET', '/api/stock/alertes').catch(() => null) : null]);
     return `${tete('Tableau de bord', `Situation au ${new Date().toLocaleDateString('fr-FR', { dateStyle: 'full' })}`,
       `<span class="actions"><button class="btn primary" data-perm="banque.saisir" data-action="op-entree">+ Entrée d'argent</button><button class="btn" data-perm="banque.saisir" data-action="op-virement">Virement fournisseur</button><button class="btn" data-perm="banque.saisir" data-action="op-transfert">Transfert en caisse</button><button class="btn" data-perm="caisse.saisir" data-action="bon-nouveau" data-type="sortie">Bon de sortie caisse</button></span>`)}
+    ${alertesStock && (alertesStock.reappro.length || alertesStock.nonSignesAnciens) ? `${banniereAlertes(alertesStock)}` : ''}
     <div class="kpis">
       <div class="kpi main"><div class="lbl">Trésorerie totale</div><div class="val">${money(d.total)}</div><div class="sub">Banques + caisse</div></div>
       ${d.soldes.map((s) => `<div class="kpi"><div class="lbl">${esc(s.banque)}</div><div class="val ${s.solde < 0 ? 'neg' : ''}">${money(s.solde)}</div><div class="sub">${esc(s.numero)}${s.intitule ? ` · ${esc(s.intitule)}` : ''}</div></div>`).join('')}
@@ -562,7 +563,8 @@ const MODELES_DROITS = {
   complet: { nom: "Gestion complète de l'agence", perms: null },
   banque: { nom: 'Banque', perms: ['banque.voir', 'banque.saisir', 'fournisseurs.gerer', 'comptes.gerer', 'etats.voir'] },
   caisse: { nom: 'Caisse', perms: ['caisse.voir', 'caisse.saisir', 'caisse.cloturer', 'pv.voir', 'pv.saisir', 'etats.voir'] },
-  stock: { nom: 'Stock', perms: ['stock.voir', 'stock.saisir', 'stock.transferer', 'stock.pertes', 'stock.inventaire', 'stock.valider', 'stock.etats'] },
+  stock: { nom: 'Stock (responsable du dépôt)', perms: ['stock.voir', 'stock.bons', 'stock.entrees', 'stock.livrer', 'stock.corriger', 'stock.etats', 'stock.referentiel'] },
+  magasin: { nom: 'Magasinier (entrées et livraisons)', perms: ['stock.voir', 'stock.entrees', 'stock.livrer'] },
   lecture: { nom: 'Consultation seule', perms: ['banque.voir', 'caisse.voir', 'pv.voir', 'etats.voir', 'previsions.voir', 'stock.voir', 'stock.etats'] },
 };
 const nomAgenceId = (id) => ((S.me.agences || []).find((g) => g._id === id) || {}).nom || '';

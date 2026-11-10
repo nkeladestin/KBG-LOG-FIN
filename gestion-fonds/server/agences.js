@@ -15,7 +15,7 @@ const contexte = new AsyncLocalStorage();
 
 const PAR_AGENCE = new Set([
   'comptes', 'operations', 'ordres', 'bons', 'clotures', 'pv', 'previsions', 'audit',
-  'lots', 'stock_mouvements', 'stock_pertes', 'stock_peremptions', 'stock_inventaires', 'stock_instantanes',
+  'cmd_bons', 'cmd_mouvements', 'cmd_livraisons',
 ]);
 const SIEGE = 'siege';
 

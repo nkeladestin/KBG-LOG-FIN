@@ -147,12 +147,15 @@ L'application est un unique processus Node.js sans étape de compilation. Option
 - L'administrateur (ou un compte « toutes agences ») choisit l'agence dans le sélecteur en haut du menu, ou la vue consolidée.
 - Avec une seule agence, rien ne change : elle s'applique d'office. Les données existantes sont rattachées automatiquement à l'agence « Siège ».
 
-**Stock (produits vivriers)**, d'après le cahier des charges KBG v2 :
-- Articles et catégories (céréales, farines, tubercules, légumineuses, huiles, sucre, fruits et légumes…), seuils min / max par agence.
-- Réceptions par lot : coût unitaire = prix + frais accessoires, péremption, fournisseur, origine, campagne, humidité, impuretés, quarantaine.
-- Sorties en FEFO (le lot qui périme le plus tôt part en premier ; tout écart doit être motivé), transferts inter-agences (en transit puis réception), pertes soumises à validation, inventaires (à l'aveugle) avec écarts valorisés.
-- Chaque jour, automatiquement : lots périmés détectés, bloqués et valorisés en perte ; instantané non modifiable de la valeur du stock.
-- Rapports imprimables / PDF : valeur du stock par agence et catégorie, pertes quotidiennes sur péremption (brute, récupération, nette, cumuls), péremptions à 7 / 15 / 30 jours et stock dormant, état des stocks et réapprovisionnement, pertes par motif, journal des mouvements, évolution quotidienne, PV d'inventaire, bons de réception / sortie / transfert, fiche de traçabilité d'un lot.
+**Stock par bons de commande** (remplace l'ancienne gestion par lots) :
+- *Régions, unités, articles* : régions militaires, unités rattachées à une région (avec effectif), articles (conditionnement, prix, stock minimum : ajout, modification, suppression ; un article déjà utilisé ne se supprime pas mais se désactive, pour garder l'historique ; raccourci « Articles » sur la Situation du stock et « + Nouvel article » dans le bon de commande), types de bons (Opérations, Initial, Complémentaire, Vivres conditionnés, Bon spécial, Extra-bon… : ajout, modification, suppression ; un type déjà utilisé par un bon se désactive au lieu d'être supprimé ; bouton « + » à côté du type dans le formulaire du bon).
+- *Bons de commande* : chaque bon de l'État-Major Général (référence, type, région, édition, période) est saisi dans le dépôt (agence) qui le sert, avec les quantités par unité et par article. Le tableau peut être **collé directement depuis Excel** (unités et colonnes reconnues, unités manquantes créées). Toute modification est historisée ; un bon peut être clôturé (reste abandonné), rouvert ou annulé (s'il n'a aucune livraison).
+- *Stock* : stock physique commun par dépôt et par article ; pour chaque bon / unité / article : commandé, livré, **reste à livrer**. Le stock est recalculé à partir des mouvements : il est exact et identique sur tous les appareils.
+- *Livraisons* : à chaque retrait d'une unité, les quantités sont décomptées du stock et du bon (jamais au-delà du reste dû ni du stock), et le **bon de livraison** est généré (2 exemplaires). Après signature papier par l'unité, on enregistre le nom et le grade du signataire. Une livraison annulée remet la marchandise en stock.
+- *Traçabilité* : chaque entrée, livraison, ajustement d'inventaire ou annulation est un mouvement horodaté, non modifiable, avec l'utilisateur qui l'a fait ; fiche de stock par article avec solde ; journal d'audit.
+- *Alertes* : réapprovisionnement quand le stock ne couvre pas les restes à livrer (quantité à acheter et valeur estimée), stock sous le minimum, bons de livraison non signés depuis plus de 3 jours (menu, tableau de bord).
+- *Rapports* (impression / PDF) : consolidation par unité, par région, par type de bon et par bon ; état du stock et besoins d'achat ; livraisons effectuées ; fiche de stock ; bon de commande.
+- Droits à cocher : consulter, bons de commande, entrées, livraisons, corrections (annulations, inventaire), rapports, référentiel.
 
 ## 4 ter. Utilisateurs
 
@@ -204,6 +207,7 @@ gestion-fonds/
 ├── .env.example          modèle de configuration
 ├── server/
 │   ├── index.js          serveur HTTP, routes API, sécurité, temps réel (SSE)
+│   ├── commandes.js      stock par bons de commande (bons, livraisons, mouvements, rapports)
 │   ├── db.js             accès MongoDB Atlas (transactions, flux de changements) + stockage mémoire de démo
 │   ├── services.js       règles de gestion : opérations, ordres, bons, clôtures, PV, prévisions, audit
 │   ├── reports.js        calcul des états : journal banque, livre de caisse, trésorerie, rapport

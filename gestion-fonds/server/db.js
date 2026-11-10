@@ -10,9 +10,8 @@ const crypto = require('crypto');
 const COLLECTIONS = [
   'parametres', 'comptes', 'fournisseurs', 'operations', 'ordres', 'bons',
   'clotures', 'pv', 'previsions', 'audit', 'utilisateurs', 'roles', 'compteurs',
-  // Agences et gestion de stock
-  'agences', 'stock_categories', 'articles', 'lots', 'stock_mouvements', 'stock_pertes',
-  'stock_peremptions', 'stock_transferts', 'stock_inventaires', 'stock_instantanes',
+  // Agences et stock par bons de commande
+  'agences', 'cmd_regions', 'cmd_unites', 'cmd_articles', 'cmd_types', 'cmd_bons', 'cmd_mouvements', 'cmd_livraisons',
 ];
 
 const newId = () => crypto.randomUUID();
@@ -50,8 +49,9 @@ class MongoStore {
       this.db.collection('pv').createIndex({ date: 1 }),
       this.db.collection('audit').createIndex({ quand: -1 }),
       this.db.collection('utilisateurs').createIndex({ identifiant: 1 }, { unique: true }),
-      this.db.collection('lots').createIndex({ agenceId: 1, articleId: 1, statut: 1 }),
-      this.db.collection('stock_mouvements').createIndex({ agenceId: 1, date: 1 }),
+      this.db.collection('cmd_mouvements').createIndex({ agenceId: 1, date: 1 }),
+      this.db.collection('cmd_livraisons').createIndex({ agenceId: 1, bonId: 1 }),
+      this.db.collection('cmd_bons').createIndex({ agenceId: 1, dateBon: -1 }),
       this.db.collection('operations').createIndex({ agenceId: 1, date: 1 }),
       this.db.collection('bons').createIndex({ agenceId: 1, date: 1 }),
     ]);

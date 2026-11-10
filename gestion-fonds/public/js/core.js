@@ -40,6 +40,7 @@ async function changerAgence(id) {
   try { sessionStorage.setItem('gf-agence', S.agence); } catch { /* indisponible */ }
   await chargerReference().catch(() => {});
   await router();
+  if (typeof majBadgeStock === 'function') majBadgeStock();
 }
 
 /* ------------------------------------------------------------ Droits */
@@ -164,6 +165,7 @@ function toast(msg, type = '') {
 /* ------------------------------------------------------------ Modale */
 function ouvrirModale(titre, html, onMount) {
   $('#modal-title').textContent = titre;
+  $('#modal .modal-box').classList.remove('large');
   $('#modal-body').innerHTML = html;
   $('#modal').hidden = false;
   const fermer = $('#modal .modal-box header .icon-btn'); if (fermer) fermer.hidden = false;
@@ -265,7 +267,7 @@ async function router() {
   $$('#nav a').forEach((a) => a.classList.toggle('active', a.dataset.route === S.route));
   document.body.classList.remove('menu-ouvert');
   const lien = $(`#nav a[data-route="${S.route}"]`);
-  if (lien) $('#mobile-titre').textContent = lien.textContent;
+  if (lien) $('#mobile-titre').textContent = lien.firstChild.textContent.trim();
   await afficherPage();
 }
 async function afficherPage() {
@@ -338,6 +340,7 @@ function connecterTempsReel() {
     if (!S.me || $('#app').hidden) return;
     if (cols.some((c) => ['parametres', 'comptes', 'fournisseurs', '*'].includes(c))) await chargerReference().catch(() => {});
     majStockage();
+    if (cols.some((c) => c.startsWith('cmd_') || c === '*') && typeof majBadgeStock === 'function') majBadgeStock();
     if (!$('#doc').hidden) return;
     // Ne pas écraser un formulaire en cours de saisie sur la page.
     if (PAGES[S.route] && PAGES[S.route].dirty) toast('De nouvelles données ont été enregistrées par un autre utilisateur.');
@@ -394,6 +397,7 @@ async function demarrerApp() {
   await majStockage();
   if (!window.__stockTimer) window.__stockTimer = setInterval(majStockage, 15000);
   await router();
+  if (typeof majBadgeStock === 'function') majBadgeStock();
   if (S.stockage && S.stockage.mode === 'local' && !S.stockage.relaisPossible && peut('stockage.gerer') && !sessionStorage.getItem('gf-cloud-plus-tard')) modaleRelierCloud();
 }
 

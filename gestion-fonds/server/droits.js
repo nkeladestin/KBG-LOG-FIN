@@ -20,14 +20,13 @@ const PERMISSIONS = [
   { cle: 'etats.voir', groupe: 'Pilotage', libelle: 'Afficher, imprimer et exporter les états de sortie' },
   { cle: 'previsions.voir', groupe: 'Pilotage', libelle: 'Consulter les prévisions de trésorerie' },
   { cle: 'previsions.modifier', groupe: 'Pilotage', libelle: 'Modifier les prévisions de trésorerie' },
-  { cle: 'stock.voir', groupe: 'Stock', libelle: 'Consulter le stock, les lots, les mouvements et les transferts' },
-  { cle: 'stock.saisir', groupe: 'Stock', libelle: 'Enregistrer les réceptions et les sorties de stock' },
-  { cle: 'stock.transferer', groupe: 'Stock', libelle: 'Transférer du stock vers une autre agence et réceptionner les transferts' },
-  { cle: 'stock.pertes', groupe: 'Stock', libelle: 'Déclarer des pertes (casse, vol, détérioration, don…)' },
-  { cle: 'stock.inventaire', groupe: 'Stock', libelle: 'Réaliser les inventaires (comptage)' },
-  { cle: 'stock.valider', groupe: 'Stock', libelle: 'Valider les pertes et les inventaires, bloquer / débloquer des lots, sortir les lots périmés' },
-  { cle: 'stock.articles', groupe: 'Stock', libelle: 'Gérer les articles, les catégories et les seuils' },
-  { cle: 'stock.etats', groupe: 'Stock', libelle: 'Rapports de stock : valeur, pertes sur péremption, péremptions à venir' },
+  { cle: 'stock.voir', groupe: 'Stock', libelle: 'Consulter les bons de commande, le stock, les livraisons et la traçabilité' },
+  { cle: 'stock.bons', groupe: 'Stock', libelle: 'Enregistrer, modifier et clôturer les bons de commande' },
+  { cle: 'stock.entrees', groupe: 'Stock', libelle: 'Enregistrer les entrées en stock (achats, réceptions fournisseurs)' },
+  { cle: 'stock.livrer', groupe: 'Stock', libelle: 'Livrer les unités (bons de livraison) et enregistrer leur signature' },
+  { cle: 'stock.corriger', groupe: 'Stock', libelle: "Annuler une livraison ou une entrée, ajustements d'inventaire" },
+  { cle: 'stock.etats', groupe: 'Stock', libelle: 'Rapports de stock, consolidations et fiches de stock' },
+  { cle: 'stock.referentiel', groupe: 'Stock', libelle: 'Gérer les régions, unités, articles et types de bons' },
   { cle: 'parametres.gerer', groupe: 'Administration', libelle: 'Modifier l\'entête et les paramètres' },
   { cle: 'agences.gerer', groupe: 'Administration', libelle: 'Créer et modifier les agences' },
   { cle: 'utilisateurs.gerer', groupe: 'Administration', libelle: 'Gérer les utilisateurs et les rôles' },
@@ -36,7 +35,13 @@ const PERMISSIONS = [
 ];
 const CLES = PERMISSIONS.map((p) => p.cle);
 /** Droits réservés à l'administration centrale (sans objet pour un responsable rattaché à une agence). */
-const CENTRALES = ['parametres.gerer', 'utilisateurs.gerer', 'stockage.gerer', 'agences.gerer', 'stock.articles'];
+const CENTRALES = ['parametres.gerer', 'utilisateurs.gerer', 'stockage.gerer', 'agences.gerer'];
+/** Droits de l'ancienne gestion de stock → droits équivalents de la gestion par bons de commande. */
+const ANCIENS_DROITS = {
+  'stock.saisir': ['stock.bons', 'stock.entrees', 'stock.livrer'], 'stock.valider': ['stock.corriger'], 'stock.inventaire': ['stock.corriger'],
+  'stock.pertes': ['stock.corriger'], 'stock.transferer': [], 'stock.articles': ['stock.referentiel'],
+};
+const traduireDroits = (liste) => [...new Set(liste.flatMap((p) => ANCIENS_DROITS[p] || [p]))];
 const CLES_RESPONSABLE = CLES.filter((c) => !CENTRALES.includes(c));
 
 const ROLES_DEFAUT = [
@@ -50,11 +55,11 @@ const ROLES_DEFAUT = [
     _id: 'responsable-agence', nom: "Responsable d'agence", description: "Toutes les opérations de son agence (banque, caisse, stock), sans voir les autres agences",
     permissions: ['banque.voir', 'banque.saisir', 'banque.annuler', 'fournisseurs.gerer', 'comptes.gerer', 'caisse.voir', 'caisse.saisir', 'caisse.annuler', 'caisse.cloturer',
       'pv.voir', 'pv.saisir', 'etats.voir', 'previsions.voir', 'previsions.modifier', 'audit.voir',
-      'stock.voir', 'stock.saisir', 'stock.transferer', 'stock.pertes', 'stock.inventaire', 'stock.valider', 'stock.etats'],
+      'stock.voir', 'stock.bons', 'stock.entrees', 'stock.livrer', 'stock.corriger', 'stock.etats', 'stock.referentiel'],
   },
   {
-    _id: 'magasinier', nom: 'Magasinier', description: 'Réceptions, sorties, transferts, déclaration de pertes et comptages',
-    permissions: ['stock.voir', 'stock.saisir', 'stock.transferer', 'stock.pertes', 'stock.inventaire'],
+    _id: 'magasinier', nom: 'Magasinier', description: 'Entrées en stock et livraisons aux unités',
+    permissions: ['stock.voir', 'stock.entrees', 'stock.livrer'],
   },
 ];
 
@@ -65,13 +70,22 @@ function createDroits(store) {
       const { _id, ...reste } = r;
       if (!(await store.col('roles').findOne({ _id }))) await store.col('roles').updateOne({ _id }, { $set: { ...reste, semence: true, creeLe: new Date().toISOString() } }, { upsert: true });
     }
+    // Remplacement de l'ancienne gestion de stock : droits convertis (idempotent).
+    const anciens = Object.keys(ANCIENS_DROITS);
+    for (const col of ['roles', 'utilisateurs']) {
+      for (const d of await store.col(col).find({})) {
+        for (const champ of ['permissions', 'permissionsPerso']) {
+          if (Array.isArray(d[champ]) && d[champ].some((p) => anciens.includes(p))) await store.col(col).updateOne({ _id: d._id }, { $set: { [champ]: traduireDroits(d[champ]) } });
+        }
+      }
+    }
   }
 
   /** Droits d'un utilisateur : tous pour l'administrateur, sinon ceux cochés sur son compte (ou ceux de son rôle). */
   async function permissionsUtilisateur(u) {
     if (!u || u.role === 'admin') return CLES.slice();
     if (Array.isArray(u.permissionsPerso || u.permissions)) {
-      const liste = u.permissionsPerso || u.permissions;
+      const liste = traduireDroits(u.permissionsPerso || u.permissions);
       return CLES.filter((c) => liste.includes(c) && (!u.agenceId || !CENTRALES.includes(c)));
     }
     const r = await permissionsDe(u.role);
@@ -81,10 +95,10 @@ function createDroits(store) {
   async function permissionsDe(roleId) {
     if (roleId === 'admin') return CLES.slice();
     const r = await store.col('roles').findOne({ _id: roleId });
-    return r ? (r.permissions || []).filter((p) => CLES.includes(p)) : [];
+    return r ? traduireDroits(r.permissions || []).filter((p) => CLES.includes(p)) : [];
   }
 
   return { initialiser, permissionsDe, permissionsUtilisateur };
 }
 
-module.exports = { PERMISSIONS, CLES, CLES_RESPONSABLE, CENTRALES, ROLES_DEFAUT, createDroits };
+module.exports = { traduireDroits, PERMISSIONS, CLES, CLES_RESPONSABLE, CENTRALES, ROLES_DEFAUT, createDroits };

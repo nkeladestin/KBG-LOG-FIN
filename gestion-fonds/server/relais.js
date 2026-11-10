@@ -10,8 +10,12 @@
    ===================================================================== */
 const { EventEmitter } = require('events');
 const { PAR_AGENCE, SIEGE } = require('./agences');
+const { COLLECTIONS } = require('./db');
+const { traduireDroits } = require('./droits');
+const REFERENTIEL = new Set(['cmd_regions', 'cmd_unites', 'cmd_articles', 'cmd_types']);
+const CONNUES = new Set(COLLECTIONS);
 
-const GLOBALES = new Set(['parametres', 'fournisseurs', 'roles', 'agences', 'articles', 'stock_categories']);
+const GLOBALES = new Set(['parametres', 'fournisseurs', 'roles', 'agences', 'cmd_regions', 'cmd_unites', 'cmd_articles', 'cmd_types']);
 
 /* ===================================================== Côté ordinateur */
 class ErreurRelais extends Error {
@@ -151,7 +155,6 @@ function creerRelaisServeur({ store, auth }) {
   function filtreLecture(col, agence) {
     if (!agence || GLOBALES.has(col)) return {};
     if (PAR_AGENCE.has(col)) return agence === SIEGE ? { $or: [{ agenceId: agence }, { agenceId: { $exists: false } }] } : { agenceId: agence };
-    if (col === 'stock_transferts') return { $or: [{ agenceId: agence }, { destinationId: agence }] };
     if (col === 'utilisateurs') return { agenceId: agence };
     return { _id: '__aucun__' };
   }
@@ -169,14 +172,18 @@ function creerRelaisServeur({ store, auth }) {
     const { agence, user } = ctx;
     if (!agence) return true;
     if (PAR_AGENCE.has(col)) return (!doc || memeAgence(doc, agence)) && (!existant || memeAgence(existant, agence));
-    if (col === 'stock_transferts') { const ok = (d) => d.agenceId === agence || d.destinationId === agence; return (!doc || ok(doc)) && (!existant || ok(existant)); }
     if (col === 'utilisateurs') return !!(doc && existant && doc._id === user._id && memesDroits(doc, existant)); // sa propre fiche (dernière connexion, mot de passe)
+    // Référentiel du stock (articles, régions, unités, types) : selon les droits cochés pour ce responsable.
+    if (REFERENTIEL.has(col)) {
+      const d = traduireDroits(user.permissionsPerso || user.permissions || []);
+      return d.includes('stock.referentiel') || (col === 'cmd_unites' && d.includes('stock.bons') && !!doc && !existant);
+    }
     return false;
   }
 
   async function lire(ctx, q) {
     const col = q.get('col');
-    if (!col || col === 'compteurs' || !store.db) return { docs: [] };
+    if (!col || col === 'compteurs' || !store.db || !CONNUES.has(col)) return { docs: [] };
     const f = { ...filtreLecture(col, ctx.agence) };
     if (q.get('depuis')) f._maj = { $gte: q.get('depuis') };
     if (q.get('ids')) f._id = { $in: q.get('ids').split(',').filter(Boolean).slice(0, 500) };
@@ -188,6 +195,8 @@ function creerRelaisServeur({ store, auth }) {
     const col = corps.col;
     const ops = Array.isArray(corps.ops) ? corps.ops.slice(0, 1000) : [];
     if (!col || col === 'compteurs' || !store.db) return { ok: true, erreurs: [] };
+    // Collection d'une ancienne version (ex. ancienne gestion de stock) : refusée, sans bloquer la file du poste.
+    if (!CONNUES.has(col)) return { ok: true, erreurs: ops.map((_, index) => ({ index, code: 0, motif: 'semence' })) };
     const ids = ops.map((o) => (o.replaceOne ? o.replaceOne.filter._id : o.deleteOne && o.deleteOne.filter._id)).filter((x) => x != null);
     const existants = new Map((await mongo(col).find({ _id: { $in: ids } }).toArray()).map((d) => [d._id, d]));
     const maintenant = new Date().toISOString();
