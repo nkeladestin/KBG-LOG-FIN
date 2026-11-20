@@ -66,7 +66,7 @@ PAGES.banque = {
         <td>${esc(o.provenance)}</td><td>${esc(o.banqueDestinataire)}</td>
         <td class="num">${o.sens === 'entree' ? nb(o.montant) : ''}</td><td class="num">${o.sens === 'sortie' ? nb(o.montant) : ''}</td>
         <td class="keep nowrap">${o.ordreId ? `<button class="btn sm" data-action="voir-ordre" data-id="${o.ordreId}">${esc(o.ordreNumero)}</button>` : ''}${o.bonId ? `<button class="btn sm" data-action="voir-bon" data-id="${o.bonId}">${esc(o.bonNumero)}</button>` : ''}</td>
-        <td class="keep">${!o.annulee && peut('banque.annuler') ? `<button class="btn sm danger" data-action="op-annuler" data-id="${o._id}" data-num="${esc(o.numero)}">Annuler</button>` : ''}</td>
+        <td class="keep nowrap">${!o.annulee && peut('banque.annuler') ? `<button class="btn sm danger" data-action="op-annuler" data-id="${o._id}" data-num="${esc(o.numero)}">Annuler</button>` : ''}${btnAdmin('operation', o._id)}</td>
       </tr>`).join('') || vide(10)}</tbody>
       <tfoot><tr><td colspan="6">Totaux de la sélection (hors opérations annulées)</td><td class="num">${nb(tD)}</td><td class="num">${nb(tC)}</td><td colspan="2"></td></tr></tfoot>
     </table></div></div>`;
@@ -185,7 +185,7 @@ PAGES.ordres = {
     ${barrePeriode()}
     <div class="card"><div class="table-wrap"><table class="data">
       <thead><tr><th>N° ordre</th><th>Date</th><th>Bénéficiaire</th><th>Banque destinataire</th><th>Compte débité</th><th>Motif</th><th class="num">Montant</th><th></th></tr></thead>
-      <tbody>${ordres.map((o) => `<tr class="${o.annulee ? 'strike' : ''}"><td class="nowrap">${esc(o.numero)}</td><td>${fd(o.date)}</td><td>${esc(o.beneficiaire.nom)}</td><td>${esc(o.beneficiaire.banque)}<br><small class="muted">${esc(o.beneficiaire.numeroCompte)}</small></td><td>${esc(o.donneurOrdre.banque)}<br><small class="muted">${esc(o.donneurOrdre.numero)}</small></td><td>${esc(o.motif)}</td><td class="num">${nb(o.montant)}</td><td class="keep"><button class="btn sm" data-action="voir-ordre" data-id="${o._id}">Imprimer / PDF</button></td></tr>`).join('') || vide(8)}</tbody>
+      <tbody>${ordres.map((o) => `<tr class="${o.annulee ? 'strike' : ''}"><td class="nowrap">${esc(o.numero)}</td><td>${fd(o.date)}</td><td>${esc(o.beneficiaire.nom)}</td><td>${esc(o.beneficiaire.banque)}<br><small class="muted">${esc(o.beneficiaire.numeroCompte)}</small></td><td>${esc(o.donneurOrdre.banque)}<br><small class="muted">${esc(o.donneurOrdre.numero)}</small></td><td>${esc(o.motif)}</td><td class="num">${nb(o.montant)}</td><td class="keep nowrap"><button class="btn sm" data-action="voir-ordre" data-id="${o._id}">Imprimer / PDF</button>${btnAdmin('ordre', o._id)}</td></tr>`).join('') || vide(8)}</tbody>
     </table></div></div>`;
   },
   mount(root) { lierPeriode(root, afficherPage); },
@@ -197,7 +197,7 @@ PAGES.fournisseurs = {
     return `${tete('Fournisseurs', 'Le nom, la banque et le compte du fournisseur sont repris sur chaque ordre de virement', '<span data-perm="fournisseurs.gerer"><button class="btn primary" data-action="fournisseur-edit">+ Nouveau fournisseur</button></span>')}
     <div class="card"><div class="table-wrap"><table class="data">
       <thead><tr><th>Nom</th><th>Banque</th><th>N° de compte</th><th>Contact</th><th>NIF</th><th>Statut</th><th></th></tr></thead>
-      <tbody>${S.fournisseurs.map((f) => `<tr><td><b>${esc(f.nom)}</b>${f.adresse ? `<br><small class="muted">${esc(f.adresse)}</small>` : ''}</td><td>${esc(f.banque)}</td><td>${esc(f.numeroCompte)}</td><td>${esc([f.telephone, f.email].filter(Boolean).join(' · '))}</td><td>${esc(f.nif)}</td><td>${f.actif === false ? '<span class="badge">Inactif</span>' : '<span class="badge in">Actif</span>'}</td><td><span data-perm="fournisseurs.gerer"><button class="btn sm" data-action="fournisseur-edit" data-id="${f._id}">Modifier</button></span></td></tr>`).join('') || vide(7, 'Aucun fournisseur enregistré.')}</tbody>
+      <tbody>${S.fournisseurs.map((f) => `<tr><td><b>${esc(f.nom)}</b>${f.adresse ? `<br><small class="muted">${esc(f.adresse)}</small>` : ''}</td><td>${esc(f.banque)}</td><td>${esc(f.numeroCompte)}</td><td>${esc([f.telephone, f.email].filter(Boolean).join(' · '))}</td><td>${esc(f.nif)}</td><td>${f.actif === false ? '<span class="badge">Inactif</span>' : '<span class="badge in">Actif</span>'}</td><td class="nowrap"><span data-perm="fournisseurs.gerer"><button class="btn sm" data-action="fournisseur-edit" data-id="${f._id}">Modifier</button></span>${btnAdmin('fournisseur', f._id, { modif: false })}</td></tr>`).join('') || vide(7, 'Aucun fournisseur enregistré.')}</tbody>
     </table></div></div>`;
   },
 };
@@ -227,7 +227,7 @@ PAGES.comptes = {
     return `${tete('Comptes bancaires', 'Comptes de l\'entreprise sur lesquels sont enregistrées les opérations', peut('comptes.gerer') ? '<button class="btn primary" data-action="compte-edit">+ Nouveau compte</button>' : '')}
     <div class="card"><div class="table-wrap"><table class="data">
       <thead><tr><th>Banque</th><th>Intitulé</th><th>N° de compte</th><th>IBAN / SWIFT</th><th class="num">Solde initial</th><th class="num">Solde actuel</th><th>Statut</th><th></th></tr></thead>
-      <tbody>${S.comptes.map((c) => `<tr><td><b>${esc(c.banque)}</b>${c.agence ? `<br><small class="muted">${esc(c.agence)}</small>` : ''}</td><td>${esc(c.intitule)}</td><td>${esc(c.numero)}</td><td>${esc([c.iban, c.swift].filter(Boolean).join(' / '))}</td><td class="num">${nb(c.soldeInitial)}</td><td class="num">${solde(c._id) === undefined ? '—' : nb(solde(c._id))}</td><td>${c.actif === false ? '<span class="badge">Inactif</span>' : '<span class="badge in">Actif</span>'}</td><td>${peut('comptes.gerer') ? `<button class="btn sm" data-action="compte-edit" data-id="${c._id}">Modifier</button>` : ''}</td></tr>`).join('') || vide(8, 'Aucun compte bancaire.')}</tbody>
+      <tbody>${S.comptes.map((c) => `<tr><td><b>${esc(c.banque)}</b>${c.agence ? `<br><small class="muted">${esc(c.agence)}</small>` : ''}</td><td>${esc(c.intitule)}</td><td>${esc(c.numero)}</td><td>${esc([c.iban, c.swift].filter(Boolean).join(' / '))}</td><td class="num">${nb(c.soldeInitial)}</td><td class="num">${solde(c._id) === undefined ? '—' : nb(solde(c._id))}</td><td>${c.actif === false ? '<span class="badge">Inactif</span>' : '<span class="badge in">Actif</span>'}</td><td class="nowrap">${peut('comptes.gerer') ? `<button class="btn sm" data-action="compte-edit" data-id="${c._id}">Modifier</button>` : ''}${estAdmin() ? `<button class="btn sm admin" data-action="adm-modif" data-type="compte" data-id="${c._id}" title="Corriger aussi le solde initial">Solde initial</button>` : ''}${btnAdmin('compte', c._id, { modif: false })}</td></tr>`).join('') || vide(8, 'Aucun compte bancaire.')}</tbody>
     </table></div></div>`;
   },
 };
@@ -258,14 +258,14 @@ PAGES.caisse = {
     ]);
     const derniere = clotures[0];
     return `${tete('Bons de caisse', `Solde de caisse actuel : <b>${money(solde.solde)}</b> · Dernière clôture : ${derniere ? `${fd(derniere.date)} (${money(derniere.soldeCloture)})` : 'aucune'}`,
-      `<span class="actions"><button class="btn primary" data-perm="caisse.saisir" data-action="bon-nouveau" data-type="entree">+ Bon d'entrée</button><button class="btn primary" data-perm="caisse.saisir" data-action="bon-nouveau" data-type="sortie">+ Bon de sortie</button><button class="btn" data-perm="caisse.cloturer" data-action="cloturer">Clôturer une journée</button></span>`)}
+      `<span class="actions"><button class="btn primary" data-perm="caisse.saisir" data-action="bon-nouveau" data-type="entree">+ Bon d'entrée</button><button class="btn primary" data-perm="caisse.saisir" data-action="bon-nouveau" data-type="sortie">+ Bon de sortie</button><button class="btn" data-perm="caisse.cloturer" data-action="cloturer">Clôturer une journée</button>${estAdmin() ? '<button class="btn" data-action="adm-clotures">Clôtures</button>' : ''}</span>`)}
     ${barrePeriode(`<label>Type<select data-f="typeBon"><option value="">Tous</option><option value="entree" ${f.typeBon === 'entree' ? 'selected' : ''}>Entrées</option><option value="sortie" ${f.typeBon === 'sortie' ? 'selected' : ''}>Sorties</option></select></label>`)}
     <div class="card"><div class="table-wrap"><table class="data">
       <thead><tr><th>N° bon</th><th>Date</th><th>Type</th><th>Libellé</th><th>Remettant / Bénéficiaire</th><th>Imputation</th><th class="num">Montant</th><th></th></tr></thead>
       <tbody>${bons.map((b) => `<tr class="${b.annulee ? 'strike' : ''}"><td class="nowrap">${esc(b.numero)}</td><td>${fd(b.date)}</td>
         <td class="keep"><span class="badge ${b.type === 'entree' ? 'in' : 'out'}">${b.type === 'entree' ? 'Entrée' : 'Sortie'}</span>${b.interne ? ' <span class="badge int">Banque</span>' : ''}${b.annulee ? ' <span class="badge warn">Annulé</span>' : ''}</td>
         <td>${esc(b.libelle)}</td><td>${esc(b.tiers)}</td><td>${esc(b.categorie)}</td><td class="num">${nb(b.montant)}</td>
-        <td class="keep nowrap"><button class="btn sm" data-action="voir-bon" data-id="${b._id}">Imprimer / PDF</button>${!b.annulee && !b.operationId && peut('caisse.annuler') && !(derniere && b.date <= derniere.date) ? ` <button class="btn sm danger" data-action="bon-annuler" data-id="${b._id}" data-num="${esc(b.numero)}">Annuler</button>` : ''}</td></tr>`).join('') || vide(8)}</tbody>
+        <td class="keep nowrap"><button class="btn sm" data-action="voir-bon" data-id="${b._id}">Imprimer / PDF</button>${!b.annulee && !b.operationId && peut('caisse.annuler') && !(derniere && b.date <= derniere.date) ? ` <button class="btn sm danger" data-action="bon-annuler" data-id="${b._id}" data-num="${esc(b.numero)}">Annuler</button>` : ''}${btnAdmin('bon', b._id)}</td></tr>`).join('') || vide(8)}</tbody>
     </table></div></div>`;
   },
   mount(root) { lierPeriode(root, afficherPage); lierFiltres(root); },
@@ -329,7 +329,7 @@ PAGES.controle = {
     ${barrePeriode()}
     <div class="card"><div class="table-wrap"><table class="data">
       <thead><tr><th>N° PV</th><th>Date</th><th>Caissier</th><th>Contrôleur</th><th class="num">Solde théorique</th><th class="num">Encaisse physique</th><th class="num">Écart</th><th></th></tr></thead>
-      <tbody>${pvs.map((p) => `<tr><td>${esc(p.numero)}</td><td>${fd(p.date)}${p.heure ? ` ${esc(p.heure)}` : ''}</td><td>${esc(p.caissier)}</td><td>${esc(p.controleur)}</td><td class="num">${nb(p.soldeTheorique)}</td><td class="num">${nb(p.soldePhysique)}</td><td class="num ${p.ecart < 0 ? 'neg' : p.ecart > 0 ? 'pos' : ''}">${p.ecart === 0 ? '<span class="badge in">Conforme</span>' : nb(p.ecart)}</td><td><button class="btn sm" data-action="voir-pv" data-id="${p._id}">Imprimer / PDF</button></td></tr>`).join('') || vide(8, 'Aucun contrôle sur la période.')}</tbody>
+      <tbody>${pvs.map((p) => `<tr><td>${esc(p.numero)}</td><td>${fd(p.date)}${p.heure ? ` ${esc(p.heure)}` : ''}</td><td>${esc(p.caissier)}</td><td>${esc(p.controleur)}</td><td class="num">${nb(p.soldeTheorique)}</td><td class="num">${nb(p.soldePhysique)}</td><td class="num ${p.ecart < 0 ? 'neg' : p.ecart > 0 ? 'pos' : ''}">${p.ecart === 0 ? '<span class="badge in">Conforme</span>' : nb(p.ecart)}</td><td class="nowrap"><button class="btn sm" data-action="voir-pv" data-id="${p._id}">Imprimer / PDF</button>${btnAdmin('pv', p._id, { modif: false })}</td></tr>`).join('') || vide(8, 'Aucun contrôle sur la période.')}</tbody>
     </table></div></div>`;
   },
   mount(root) { lierPeriode(root, afficherPage); },
@@ -691,7 +691,7 @@ ACTIONS['user-edit'] = (ds) => {
 };
 /** Récapitulatif à transmettre à la personne (copiable). */
 function recapAcces(x) {
-  const texte = `Gestion des fonds – vos accès\nAgence : ${x.agence}\nAdresse (téléphone ou ordinateur) : ${PAGES.utilisateurs.adresse}\nIdentifiant : ${x.identifiant}\nMot de passe : ${x.motDePasse}`;
+  const texte = `MIL FIN_STOCK – vos accès\nAgence : ${x.agence}\nAdresse (téléphone ou ordinateur) : ${PAGES.utilisateurs.adresse}\nIdentifiant : ${x.identifiant}\nMot de passe : ${x.motDePasse}`;
   ouvrirModale(`Accès de ${x.nom}`, `<p style="margin-top:0">Transmettez ces informations à la personne de façon confidentielle. Sur un ordinateur où l'application est installée, elle se connecte avec le même identifiant.</p>
     <div class="recap-acces" id="recap">${esc(texte)}</div>
     <div class="form-foot"><button type="button" class="btn" id="copier">Copier</button><button type="button" class="btn primary" data-action="close-modal">Terminé</button></div>`, (b) => {
@@ -861,7 +861,7 @@ PAGES.agences = {
       <tbody>${ags.map((g) => `<tr class="${g.actif === false ? 'muted' : ''}"><td class="nowrap"><b>${esc(g.code)}</b></td><td>${esc(g.nom)}</td><td>${esc([g.ville, g.adresse].filter(Boolean).join(' – '))}${g.telephone ? `<br><small class="muted">${esc(g.telephone)}</small>` : ''}</td>
         <td>${esc(g.responsable || '')}</td><td class="num">${nb(g.soldeInitialCaisse || 0)}</td><td class="num">${us.filter((u) => u.agenceId === g._id).length}</td>
         <td>${g.actif === false ? '<span class="badge">Inactive</span>' : '<span class="badge in">Active</span>'}</td>
-        <td class="nowrap"><button class="btn sm" data-action="agence-edit" data-id="${g._id}">Modifier</button> <button class="btn sm" data-action="agence-voir" data-id="${g._id}">Ouvrir</button></td></tr>`).join('') || vide(8, 'Aucune agence.')}</tbody>
+        <td class="nowrap"><button class="btn sm" data-action="agence-edit" data-id="${g._id}">Modifier</button> <button class="btn sm" data-action="agence-voir" data-id="${g._id}">Ouvrir</button>${btnAdmin('agence', g._id, { modif: false })}</td></tr>`).join('') || vide(8, 'Aucune agence.')}</tbody>
     </table></div></div>
     <p class="muted" style="font-size:12.5px">Pour donner un accès à un responsable d'agence : menu Utilisateurs → « Nouveau responsable d'agence » : choisissez l'agence et cochez ce qu'il peut faire.</p>`;
   },

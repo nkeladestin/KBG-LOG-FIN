@@ -108,7 +108,7 @@ PAGES['bons-commande'] = {
       <thead><tr>${thAg()}<th>N°</th><th>Référence EMG</th><th>Type</th><th>Région</th><th>Édition</th><th>Date</th><th class="num">Unités</th><th>Livré</th><th>État</th><th></th></tr></thead>
       <tbody>${bons.map((b) => `<tr>${tdAg(b)}<td class="nowrap"><a href="#/bon-commande?id=${b._id}"><b>${esc(b.numero)}</b></a></td><td>${esc(b.reference)}</td><td>${esc(b.typeNom)}</td>
         <td>${esc(b.regionNom)}</td><td>${esc(b.edition)}</td><td class="nowrap">${fd(b.dateBon)}</td><td class="num">${b.nbUnites}</td><td class="nowrap">${barreAvancement(b.avancement)}</td>
-        <td>${badgeEtat(b.etat)}</td><td class="nowrap"><a class="btn sm" href="#/bon-commande?id=${b._id}">Ouvrir</a></td></tr>`).join('') || vide(11, 'Aucun bon de commande.')}</tbody>
+        <td>${badgeEtat(b.etat)}</td><td class="nowrap"><a class="btn sm" href="#/bon-commande?id=${b._id}">Ouvrir</a>${btnAdmin('stock-bon', b._id, { modif: false })}</td></tr>`).join('') || vide(11, 'Aucun bon de commande.')}</tbody>
     </table></div></div>`;
   },
   mount(root) {
@@ -131,7 +131,7 @@ PAGES['bon-commande'] = {
       ${ouvert ? '<button class="btn" data-perm="stock.bons" data-action="cmd-bon-edit" data-id="' + b._id + '">Modifier</button>' : ''}
       ${ouvert ? `<button class="btn" data-perm="stock.bons" data-action="cmd-bon-statut" data-statut="cloturer">Clôturer</button>` : ''}
       ${b.statut === 'cloture' ? `<button class="btn" data-perm="stock.bons" data-action="cmd-bon-statut" data-statut="rouvrir">Rouvrir</button>` : ''}
-      ${b.statut !== 'annule' && !b.livraisons.some((l) => l.statut !== 'annule') ? `<button class="btn danger" data-perm="stock.bons" data-action="cmd-bon-statut" data-statut="annuler">Annuler le bon</button>` : ''}</span>`)}
+      ${b.statut !== 'annule' && !b.livraisons.some((l) => l.statut !== 'annule') ? `<button class="btn danger" data-perm="stock.bons" data-action="cmd-bon-statut" data-statut="annuler">Annuler le bon</button>` : ''}${estAdmin() ? `<button class="btn danger admin" data-action="adm-suppr" data-type="stock-bon" data-id="${b._id}">Supprimer</button>` : ''}</span>`)}
     <div class="kpis">
       <div class="kpi main"><div class="lbl">État</div><div class="val">${esc((ETATS_BON[b.etat] || [b.etat])[0])}</div><div class="sub">${nq(b.avancement)} % livré</div></div>
       <div class="kpi"><div class="lbl">Date du bon</div><div class="val">${fd(b.dateBon)}</div><div class="sub">${b.dateReception ? `Reçu le ${fd(b.dateReception)}` : ''}${b.dateDebut ? ` · période du ${fd(b.dateDebut)} au ${fd(b.dateFin)}` : ''}</div></div>
@@ -164,7 +164,7 @@ function ligneBL(l, avecBon = true) {
     <td><small>${esc(l.nomCreateur)}<br>${fdt(l.creeLe)}</small></td>
     <td class="nowrap"><button class="btn sm" data-action="cmd-bl-voir" data-id="${l._id}">BL</button>
       ${l.statut === 'a_signer' ? `<button class="btn sm primary" data-perm="stock.livrer" data-action="cmd-bl-signer" data-id="${l._id}" data-num="${esc(l.numero)}">Signé</button>` : ''}
-      ${l.statut !== 'annule' ? `<button class="btn sm danger" data-perm="stock.corriger" data-action="cmd-bl-annuler" data-id="${l._id}" data-num="${esc(l.numero)}">Annuler</button>` : ''}</td></tr>`;
+      ${l.statut !== 'annule' ? `<button class="btn sm danger" data-perm="stock.corriger" data-action="cmd-bl-annuler" data-id="${l._id}" data-num="${esc(l.numero)}">Annuler</button>` : ''}${btnAdmin('stock-livraison', l._id)}</td></tr>`;
 }
 ACTIONS['cmd-bon-imprimer'] = () => docBonCommande(PAGES['bon-commande'].bon);
 ACTIONS['cmd-bon-statut'] = (ds) => {
@@ -544,7 +544,7 @@ PAGES['mouvements-stock'] = {
     : `<td><small>${m.lignes.map((l) => `${l.quantite > 0 ? '+' : ''}${nq(l.quantite)} ${esc(l.designation)}`).join('<br>')}</small></td>`}
         <td><small>${esc(m.nomCreateur)}<br>${fdt(m.creeLe)}</small></td>
         <td class="nowrap"><button class="btn sm" data-action="cmd-mvt-voir" data-id="${m._id}">Voir</button>
-          ${['entree', 'ajustement'].includes(m.type) && !m.annulePar ? `<button class="btn sm danger" data-perm="stock.corriger" data-action="cmd-mvt-annuler" data-id="${m._id}" data-num="${esc(m.numero)}">Annuler</button>` : ''}</td></tr>`).join('') || vide(fiche ? 10 : 8, 'Aucun mouvement sur la période.')}</tbody>
+          ${['entree', 'ajustement'].includes(m.type) && !m.annulePar ? `<button class="btn sm danger" data-perm="stock.corriger" data-action="cmd-mvt-annuler" data-id="${m._id}" data-num="${esc(m.numero)}">Annuler</button>` : ''}${btnAdmin('stock-mouvement', m._id, { modif: m.type !== 'livraison' })}</td></tr>`).join('') || vide(fiche ? 10 : 8, 'Aucun mouvement sur la période.')}</tbody>
     </table></div></div>`;
   },
   mount(root) {
@@ -629,8 +629,8 @@ PAGES['referentiel-stock'] = {
     const actif = (x) => (x.actif === false ? '<span class="badge">Inactif</span>' : '<span class="badge in">Actif</span>');
     const btn = (k, id) => (ed ? `<button class="btn sm" data-action="cmd-ref-edit" data-type="${k}" data-id="${id}">Modifier</button>` : '');
     let t = '';
-    if (o === 'unites') t = `<thead><tr><th>Unité</th><th>Région</th><th class="num">Effectif</th><th>Statut</th><th></th></tr></thead><tbody>${R.unites.slice().sort((a, b) => regionDe(a.regionId).nom.localeCompare(regionDe(b.regionId).nom) || a.nom.localeCompare(b.nom)).map((u) => `<tr><td><b>${esc(u.nom)}</b></td><td>${esc(regionDe(u.regionId).nom)}</td><td class="num">${nq(u.effectif)}</td><td>${actif(u)}</td><td>${btn('unites', u._id)}</td></tr>`).join('') || vide(5, 'Aucune unité.')}</tbody>`;
-    if (o === 'regions') t = `<thead><tr><th>Région militaire</th><th>Code</th><th class="num">Unités</th><th>Statut</th><th></th></tr></thead><tbody>${R.regions.map((r) => `<tr><td><b>${esc(r.nom)}</b>${r.observations ? `<br><small class="muted">${esc(r.observations)}</small>` : ''}</td><td>${esc(r.code)}</td><td class="num">${R.unites.filter((u) => u.regionId === r._id).length}</td><td>${actif(r)}</td><td>${btn('regions', r._id)}</td></tr>`).join('') || vide(5, 'Aucune région : commencez par créer les régions militaires.')}</tbody>`;
+    if (o === 'unites') t = `<thead><tr><th>Unité</th><th>Région</th><th class="num">Effectif</th><th>Statut</th><th></th></tr></thead><tbody>${R.unites.slice().sort((a, b) => regionDe(a.regionId).nom.localeCompare(regionDe(b.regionId).nom) || a.nom.localeCompare(b.nom)).map((u) => `<tr><td><b>${esc(u.nom)}</b></td><td>${esc(regionDe(u.regionId).nom)}</td><td class="num">${nq(u.effectif)}</td><td>${actif(u)}</td><td class="nowrap">${btn('unites', u._id)}${btnAdmin('stock-unite', u._id, { modif: false })}</td></tr>`).join('') || vide(5, 'Aucune unité.')}</tbody>`;
+    if (o === 'regions') t = `<thead><tr><th>Région militaire</th><th>Code</th><th class="num">Unités</th><th>Statut</th><th></th></tr></thead><tbody>${R.regions.map((r) => `<tr><td><b>${esc(r.nom)}</b>${r.observations ? `<br><small class="muted">${esc(r.observations)}</small>` : ''}</td><td>${esc(r.code)}</td><td class="num">${R.unites.filter((u) => u.regionId === r._id).length}</td><td>${actif(r)}</td><td class="nowrap">${btn('regions', r._id)}${btnAdmin('stock-region', r._id, { modif: false })}</td></tr>`).join('') || vide(5, 'Aucune région : commencez par créer les régions militaires.')}</tbody>`;
     if (o === 'articles') t = `<thead><tr><th>Article</th><th>Conditionnement</th><th>Unité de compte</th><th class="num">Prix unitaire</th><th class="num">Stock minimum</th><th>Statut</th><th></th></tr></thead><tbody>${R.articles.map((a) => `<tr><td><b>${esc(a.designation)}</b></td><td>${esc(a.conditionnement)}</td><td>${esc(a.unite)}</td><td class="num">${a.prixUnitaire ? nb(a.prixUnitaire) : '—'}</td><td class="num">${a.seuilMin ? nq(a.seuilMin) : '—'}</td><td>${actif(a)}</td><td class="nowrap">${btn('articles', a._id)}${ed ? ` <button class="btn sm danger" data-action="cmd-art-suppr" data-id="${a._id}">Supprimer</button>` : ''}</td></tr>`).join('') || vide(7, 'Aucun article.')}</tbody>`;
     if (o === 'types') t = `<thead><tr><th>Type de bon</th><th>Quantités</th><th>Statut</th><th></th></tr></thead><tbody>${R.types.map((x) => `<tr><td><b>${esc(x.nom)}</b></td><td>${x.nature === 'mensuel' ? 'Mensuelles' : 'Temporaires'}</td><td>${actif(x)}</td><td class="nowrap">${btn('types', x._id)}${ed ? ` <button class="btn sm danger" data-action="cmd-type-suppr" data-id="${x._id}">Supprimer</button>` : ''}</td></tr>`).join('') || vide(4, 'Aucun type de bon.')}</tbody>`;
     const nouveau = { unites: '+ Nouvelle unité', regions: '+ Nouvelle région', articles: '+ Nouvel article', types: '+ Nouveau type' }[o];

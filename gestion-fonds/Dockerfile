@@ -1,4 +1,4 @@
-# Serveur « Gestion des fonds » pour l'hébergement cloud (téléphones, tablettes, navigateurs).
+# Serveur « MIL FIN_STOCK » pour l'hébergement cloud (téléphones, tablettes, navigateurs).
 FROM node:22-alpine
 WORKDIR /app
 ENV NODE_ENV=production DB_MODE=cloud PORT=3000

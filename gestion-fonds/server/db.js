@@ -11,7 +11,7 @@ const COLLECTIONS = [
   'parametres', 'comptes', 'fournisseurs', 'operations', 'ordres', 'bons',
   'clotures', 'pv', 'previsions', 'audit', 'utilisateurs', 'roles', 'compteurs',
   // Agences et stock par bons de commande
-  'agences', 'cmd_regions', 'cmd_unites', 'cmd_articles', 'cmd_types', 'cmd_bons', 'cmd_mouvements', 'cmd_livraisons',
+  'agences', 'cmd_regions', 'cmd_unites', 'cmd_articles', 'cmd_types', 'cmd_bons', 'cmd_mouvements', 'cmd_livraisons', 'corbeille',
 ];
 
 const newId = () => crypto.randomUUID();

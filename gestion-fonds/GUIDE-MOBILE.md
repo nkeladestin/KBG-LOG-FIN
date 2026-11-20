@@ -1,4 +1,4 @@
-# Gestion des fonds sur téléphone et tablette (iPhone, iPad, Android)
+# MIL FIN_STOCK sur téléphone et tablette (iPhone, iPad, Android)
 
 L'application mobile est une **application web installable (PWA)**. Le même code sert pour iPhone, iPad, Android et les navigateurs. Elle s'installe sur l'écran d'accueil comme une vraie application : icône, plein écran, sans barre d'adresse. Elle travaille **directement sur votre base MongoDB Atlas**, donc sur les mêmes données que le PC, en temps réel.
 

@@ -1,4 +1,4 @@
-# Gestion des fonds – Banque · Virements · Caisse · États
+# MIL FIN_STOCK – Banque · Virements · Caisse · États
 
 Application web de gestion des fonds avec stockage cloud **MongoDB Atlas**, synchronisation en temps réel et états de sortie imprimables / exportables en PDF avec **entête personnalisé**.
 
@@ -87,12 +87,12 @@ Ouvrez <http://localhost:3000> et connectez-vous avec `ADMIN_USER` / `ADMIN_PASS
    - copie l'application dans `%LOCALAPPDATA%\GestionFonds` ;
    - télécharge le pilote MongoDB ;
    - demande la chaîne de connexion Atlas et le compte administrateur ;
-   - crée les raccourcis **Gestion des fonds** sur le Bureau et dans le menu Démarrer ;
+   - crée les raccourcis **MIL FIN_STOCK** sur le Bureau et dans le menu Démarrer ;
    - inscrit l'application dans *Paramètres → Applications* pour la désinstallation.
 4. Lancez l'application depuis l'icône du Bureau : le navigateur s'ouvre sur <http://localhost:3000>. Gardez la fenêtre noire ouverte pendant l'utilisation.
 
 **Mise à jour :** relancez `INSTALLER.bat` d'une version plus récente ; la configuration est conservée.
-**Désinstallation :** menu Démarrer → *Désinstaller Gestion des fonds* (les données dans Atlas ne sont pas touchées).
+**Désinstallation :** menu Démarrer → *Désinstaller MIL FIN_STOCK* (les données dans Atlas ne sont pas touchées).
 
 ## 3 ter. Double stockage local + cloud
 
@@ -156,6 +156,19 @@ L'application est un unique processus Node.js sans étape de compilation. Option
 - *Alertes* : réapprovisionnement quand le stock ne couvre pas les restes à livrer (quantité à acheter et valeur estimée), stock sous le minimum, bons de livraison non signés depuis plus de 3 jours (menu, tableau de bord).
 - *Rapports* (impression / PDF) : consolidation par unité, par région, par type de bon et par bon ; état du stock et besoins d'achat ; livraisons effectuées ; fiche de stock ; bon de commande.
 - Droits à cocher : consulter, bons de commande, entrées, livraisons, corrections (annulations, inventaire), rapports, référentiel.
+
+## 4 quater. Pouvoirs de l'administrateur (modifier / supprimer tout)
+
+Réservé aux comptes **Administrateur** (jamais aux responsables d'agence) :
+- **Modifier** : opérations bancaires, ordres de virement, bons de caisse (y compris en journée clôturée), solde initial d'un compte,
+  bons de livraison (quantités), entrées en stock et ajustements. Les pièces liées suivent automatiquement (opération ↔ bon de caisse
+  ↔ ordre de virement, livraison ↔ mouvement de stock), montant en lettres compris.
+- **Supprimer** : tout ce qui précède, plus PV de contrôle, clôtures de caisse (la journée est rouverte), comptes bancaires
+  (avec leurs opérations), fournisseurs, agences vides, bons de commande (avec leurs livraisons), mouvements de stock,
+  régions et unités. La fenêtre de confirmation annonce les pièces liées qui partent avec, et un motif est obligatoire.
+- **Corbeille** (menu Administration) : tout élément supprimé y est conservé à l'identique et peut être **restauré** (même numéro)
+  ou supprimé définitivement. Elle est partagée entre le cloud et les ordinateurs de l'administration.
+- Chaque modification (avant → après), suppression et restauration est inscrite au **journal d'audit** ; le journal lui-même ne se supprime pas.
 
 ## 4 ter. Utilisateurs
 

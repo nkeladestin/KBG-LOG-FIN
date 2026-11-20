@@ -51,6 +51,7 @@ const peut = (...perms) => !!(S.me && S.me.permissions && perms.some((p) => S.me
  * anime = vrai : un accès retiré pendant l'utilisation s'estompe à l'écran avant de disparaître.
  */
 function appliquerDroits(racine, anime = false) {
+  $$('[data-admin]', racine).forEach((el) => { el.hidden = !(S.me && S.me.role === 'admin'); });
   $$('[data-perm]', racine).forEach((el) => {
     const autorise = peut(...el.dataset.perm.split(','));
     if (autorise) { el.classList.remove('droit-retire'); el.hidden = false; return; }
@@ -252,7 +253,7 @@ function lierPeriode(root, onChange) {
 async function chargerReference() {
   const [params, comptes, fournisseurs] = await Promise.all([api('GET', '/api/parametres'), api('GET', '/api/comptes'), api('GET', '/api/fournisseurs')]);
   S.params = params; S.comptes = comptes; S.fournisseurs = fournisseurs;
-  $('#brand-nom').textContent = params.entreprise.sigle || params.entreprise.nom || 'Gestion des fonds';
+  $('#brand-nom').textContent = params.entreprise.sigle || params.entreprise.nom || 'MIL FIN_STOCK';
 }
 const optionsComptes = (sel, tous = false) => (tous ? '<option value="">Tous les comptes</option>' : '')
   + S.comptes.filter((c) => c.actif !== false || c._id === sel).map((c) => `<option value="${c._id}" ${c._id === sel ? 'selected' : ''}>${esc(c.banque)} – ${esc(c.numero)}${c.intitule ? ` (${esc(c.intitule)})` : ''}</option>`).join('');

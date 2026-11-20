@@ -4,14 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#14213d">
-  <meta name="description" content="Gestion des fonds : banque, caisse, trésorerie et états financiers">
+  <meta name="description" content="MIL FIN_STOCK : banque, caisse, trésorerie et états financiers">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Gestion fonds">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="apple-touch-icon" href="/icones/apple-touch-icon.png">
-  <title>Gestion des fonds</title>
+  <title>MIL FIN_STOCK</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/css/app.css">
 </head>
@@ -19,7 +19,7 @@
   <!-- Connexion -->
   <section id="login" class="login" hidden>
     <form id="login-form" class="login-card" autocomplete="on">
-      <div class="login-brand"><span class="brand-mark">GF</span><div><strong>Gestion des fonds</strong><small>Banque · Caisse · Trésorerie</small></div></div>
+      <div class="login-brand"><span class="brand-mark">MF</span><div><strong>MIL FIN_STOCK</strong><small>Banque · Caisse · Trésorerie</small></div></div>
       <label>Identifiant<input name="identifiant" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required autofocus></label>
       <label>Mot de passe<input name="motDePasse" type="password" autocomplete="current-password" required></label>
       <p class="form-error" id="login-error" hidden></p>
@@ -31,7 +31,7 @@
   <!-- Premier démarrage : aucun utilisateur -->
   <section id="installation" class="login" hidden>
     <div class="login-card" style="width:min(460px,94vw)">
-      <div class="login-brand"><span class="brand-mark">GF</span><div><strong>Bienvenue dans Gestion des fonds</strong><small>Premier démarrage de cet ordinateur</small></div></div>
+      <div class="login-brand"><span class="brand-mark">MF</span><div><strong>Bienvenue dans MIL FIN_STOCK</strong><small>Premier démarrage de cet ordinateur</small></div></div>
       <div class="tabs" style="margin:0"><button type="button" data-inst="admin" class="active">Nouveau compte administrateur</button><button type="button" data-inst="cloud">Données existantes (cloud)</button></div>
       <form id="inst-admin" style="display:grid;gap:12px">
         <p class="muted" style="margin:0;font-size:13px">Créez le compte administrateur. Il pourra ensuite donner des accès aux autres utilisateurs.</p>
@@ -59,12 +59,12 @@
     <!-- Barre supérieure (téléphones et tablettes) -->
     <header class="mobilebar">
       <button class="icon-btn menu-btn" data-action="menu" aria-label="Ouvrir le menu"><span></span><span></span><span></span></button>
-      <strong id="mobile-titre">Gestion des fonds</strong>
+      <strong id="mobile-titre">MIL FIN_STOCK</strong>
       <a href="#/stockage" class="mobile-stock" id="mobile-stock" aria-label="État du stockage"><span class="dot"></span></a>
     </header>
     <div class="voile" data-action="menu-fermer"></div>
     <aside class="sidebar">
-      <div class="brand"><span class="brand-mark">GF</span><div><strong id="brand-nom">Gestion des fonds</strong><small id="brand-sous">Banque · Caisse · Stock</small></div></div>
+      <div class="brand"><span class="brand-mark">MF</span><div><strong id="brand-nom">MIL FIN_STOCK</strong><small id="brand-sous">Banque · Caisse · Stock</small></div></div>
       <div class="agence-zone" id="agence-zone" hidden><label for="agence-sel">Agence</label><select id="agence-sel"></select><div id="agence-fixe" class="agence-fixe" hidden></div></div>
       <nav id="nav">
         <a href="#/tableau" data-route="tableau">Tableau de bord</a>
@@ -92,6 +92,7 @@
         <a href="#/agences" data-route="agences" data-perm="agences.gerer">Agences</a>
         <a href="#/utilisateurs" data-route="utilisateurs" data-perm="utilisateurs.gerer">Utilisateurs</a>
         <a href="#/audit" data-route="audit" data-perm="audit.voir">Journal d'audit</a>
+        <a href="#/corbeille" data-route="corbeille" data-admin>Corbeille</a>
         <a href="#/stockage" data-route="stockage">Stockage &amp; synchronisation</a>
       </nav>
       <div class="sidebar-foot">
@@ -144,6 +145,7 @@
   <script src="/js/core.js"></script>
   <script src="/js/docs.js"></script>
   <script src="/js/pages.js"></script>
+  <script src="/js/admin.js"></script>
   <script src="/js/stock.js"></script>
 </body>
 </html>

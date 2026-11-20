@@ -1,7 +1,7 @@
 {
   "name": "gestion-fonds",
   "version": "1.0.0",
-  "description": "Gestion des fonds : banque, virements fournisseurs, caisse, états de sortie – stockage MongoDB Atlas",
+  "description": "MIL FIN_STOCK : banque, virements fournisseurs, caisse, états de sortie – stockage MongoDB Atlas",
   "main": "server/index.js",
   "private": true,
   "scripts": {

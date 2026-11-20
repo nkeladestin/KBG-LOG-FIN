@@ -1,6 +1,6 @@
 'use strict';
 /**
- * Gestion des fonds – serveur HTTP (Node.js ≥ 18, sans framework).
+ * MIL FIN_STOCK – serveur HTTP (Node.js ≥ 18, sans framework).
  * Variables d'environnement : voir .env.example
  */
 const http = require('http');
@@ -33,8 +33,9 @@ const { createDroits, PERMISSIONS, CLES, CLES_RESPONSABLE, CENTRALES } = require
 const miseAJour = require('./miseajour');
 const { dansAgence, vueAgence, migrerAgences } = require('./agences');
 const { createCommandes } = require('./commandes');
+const { createAdmin } = require('./admin');
 
-const VERSION = '2026.11.10-18'; // à chaque livraison : le PC compare avec le serveur en ligne
+const VERSION = '2026.11.20-20'; // à chaque livraison : le PC compare avec le serveur en ligne
 const PORT = Number(process.env.PORT || 3000);
 // Sur un hébergeur (Render, Railway…), le mode cloud est utilisé par défaut.
 const MODE = (process.env.DB_MODE || (process.env.RENDER || process.env.RAILWAY_ENVIRONMENT ? 'cloud' : 'double')).toLowerCase(); // double | cloud | memory
@@ -53,7 +54,7 @@ async function assistantConfiguration() {
     const fin = (r) => res(String(r).trim() || def);
     if (lignes.length) fin(lignes.shift()); else attente = fin;
   });
-  console.log('\n=== Gestion des fonds – configuration initiale ===\n');
+  console.log('\n=== MIL FIN_STOCK – configuration initiale ===\n');
   console.log('Les données sont enregistrées sur ce PC (dossier « donnees »).');
   console.log('La connexion au cloud (MongoDB Atlas) se paramètre plus tard dans l\'application :');
   console.log('menu « Stockage & synchronisation ».\n');
@@ -284,6 +285,7 @@ async function demarrer() {
   const svc = createServices(donnees, broadcast);
   const rep = createReports(donnees, svc);
   const stock = createCommandes({ store, donnees, svc, broadcast });
+  const admin = createAdmin({ store, donnees, svc, broadcast });
   const auth = createAuth(store, secret);
   store.watch((ev) => { if (ev.collection !== 'audit' && ev.collection !== 'compteurs') broadcast(ev.collection); });
   /*
@@ -411,6 +413,14 @@ async function demarrer() {
 
   /* -------------------------------------------------------------- Stock */
   const per = (q) => periode(q, svc);
+  /* ------------------------------- Administrateur : modifier / supprimer tout */
+  r('GET', '/api/admin/apercu/:type/:id', null, ({ user, p }) => admin.apercu(user, p.type, p.id));
+  r('POST', '/api/admin/supprimer/:type/:id', null, ({ user, p, body }) => admin.supprimer(user, p.type, p.id, body.motif));
+  r('POST', '/api/admin/modifier/:type/:id', null, ({ user, p, body }) => admin.modifier(user, p.type, p.id, body.valeurs));
+  r('GET', '/api/admin/corbeille', null, ({ user }) => admin.corbeille(user));
+  r('POST', '/api/admin/corbeille/:id/restaurer', null, ({ user, p }) => admin.restaurer(user, p.id));
+  r('POST', '/api/admin/corbeille/:id/supprimer', null, ({ user, p }) => admin.viderCorbeille(user, p.id));
+
   /* ------------------------------------------- Stock par bons de commande */
   const fStock = (q) => ({ ...Object.fromEntries(q), ouverts: q.get('ouverts') === '1' });
   r('GET', '/api/stock/referentiel', null, () => stock.referentiel());

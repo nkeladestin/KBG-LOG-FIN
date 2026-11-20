@@ -427,3 +427,9 @@ tr.barre td:last-child { text-decoration: none; }
 }
 .champ-ajout { display: flex; gap: 6px; }
 .champ-ajout select { flex: 1; min-width: 0; }
+
+/* ---------------------------------------------- Pouvoirs de l'administrateur */
+.admin-actions { display: inline-flex; gap: 4px; margin-left: 4px; }
+.btn.admin { border-style: dashed; }
+.avert-admin { background: #fff8ec; border: 1px solid #f0a43a; border-radius: 6px; padding: 6px 10px; font-size: 13px; }
+.liste-liees { margin: 4px 0 10px; padding-left: 20px; font-size: 13px; }
