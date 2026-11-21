@@ -35,7 +35,7 @@ const { dansAgence, vueAgence, migrerAgences } = require('./agences');
 const { createCommandes } = require('./commandes');
 const { createAdmin } = require('./admin');
 
-const VERSION = '2026.11.20-20'; // à chaque livraison : le PC compare avec le serveur en ligne
+const VERSION = '2026.11.20-21'; // à chaque livraison : le PC compare avec le serveur en ligne
 const PORT = Number(process.env.PORT || 3000);
 // Sur un hébergeur (Render, Railway…), le mode cloud est utilisé par défaut.
 const MODE = (process.env.DB_MODE || (process.env.RENDER || process.env.RAILWAY_ENVIRONMENT ? 'cloud' : 'double')).toLowerCase(); // double | cloud | memory
@@ -285,7 +285,20 @@ async function demarrer() {
   const svc = createServices(donnees, broadcast);
   const rep = createReports(donnees, svc);
   const stock = createCommandes({ store, donnees, svc, broadcast });
-  const admin = createAdmin({ store, donnees, svc, broadcast });
+  // Remise à 1 de la numérotation : sur la base en ligne (serveur en ligne ou ordinateur relié directement à Atlas).
+  const reinitCompteurs = async (prefixes) => {
+    const re = { _id: { $regex: `^(${prefixes.join('|')})-` } };
+    if (MODE === 'cloud') { for (const c of await store.col('compteurs').find({})) if (new RegExp(re._id.$regex).test(c._id)) await store.col('compteurs').deleteMany({ _id: c._id }); return; }
+    if (synchro && synchro.db && !synchro.parServeur) await synchro.db.collection('compteurs').deleteMany(re);
+    for (const c of await store.col('compteurs').find({})) if (new RegExp(re._id.$regex).test(c._id)) await store.col('compteurs').deleteMany({ _id: c._id });
+  };
+  const admin = createAdmin({
+    store, donnees, svc, broadcast, verifierMdp, version: VERSION,
+    reinitCompteurs,
+    // Possible là où l'on écrit directement dans la base en ligne (pas sur un ordinateur relié par le serveur)
+    peutRenumeroter: () => MODE === 'cloud' || !!(synchro && synchro.db && !synchro.parServeur && synchro.enLigne),
+    apresReinit: async (cats) => { if (cats.includes('referentiel')) await stock.initialiser(); },
+  });
   const auth = createAuth(store, secret);
   store.watch((ev) => { if (ev.collection !== 'audit' && ev.collection !== 'compteurs') broadcast(ev.collection); });
   /*
@@ -420,6 +433,10 @@ async function demarrer() {
   r('GET', '/api/admin/corbeille', null, ({ user }) => admin.corbeille(user));
   r('POST', '/api/admin/corbeille/:id/restaurer', null, ({ user, p }) => admin.restaurer(user, p.id));
   r('POST', '/api/admin/corbeille/:id/supprimer', null, ({ user, p }) => admin.viderCorbeille(user, p.id));
+  r('GET', '/api/admin/reinitialiser', null, ({ user, q }) => admin.infosReinit(user, q.get('agence')));
+  r('GET', '/api/admin/sauvegarde', null, ({ user, q }) => admin.sauvegarde(user, q.get('categories'), q.get('agence')));
+  r('POST', '/api/admin/reinitialiser', null, ({ user, body }) => admin.reinitialiser(user, body));
+  r('POST', '/api/admin/sauvegarde/restaurer', null, ({ user, body }) => admin.restaurerSauvegarde(user, body));
 
   /* ------------------------------------------- Stock par bons de commande */
   const fStock = (q) => ({ ...Object.fromEntries(q), ouverts: q.get('ouverts') === '1' });
@@ -1108,7 +1125,7 @@ async function demarrer() {
             return envoyer(res, 403, { erreur: 'Changez votre mot de passe provisoire pour continuer.', code: 'changement-requis' });
           }
           if (rt.perm && ![].concat(rt.perm).some((x) => user.permissions.includes(x))) return envoyer(res, 403, { erreur: "Vous n'avez pas les droits nécessaires pour cette action." });
-          const body = req.method === 'GET' ? {} : await lireCorps(req);
+          const body = req.method === 'GET' ? {} : await lireCorps(req, chemin === '/api/admin/sauvegarde/restaurer' ? 64 * 1024 * 1024 : undefined);
           const out = await rt.fn({ user, body, q: url.searchParams, p: m.groups || {} });
           // Cloud prioritaire : l'enregistrement n'est confirmé qu'une fois parti dans le cloud
           // (sinon il reste sur ce poste et partira dès le retour de la connexion).

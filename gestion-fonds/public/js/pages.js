@@ -465,7 +465,7 @@ PAGES.parametres = {
     this.dirty = false;
     const p = S.params; const e = p.entreprise; const s = p.signataires;
     const ch = (n, l, v, full = false, ph = '') => `<label class="${full ? 'full' : ''}">${l}<input name="${n}" value="${esc(v)}" placeholder="${esc(ph)}"></label>`;
-    return `${tete('Entête & paramètres', 'Ces informations apparaissent automatiquement en entête de tous les états et documents imprimés')}
+    return `${tete('Entête & paramètres', 'Ces informations apparaissent automatiquement en entête de tous les états et documents imprimés', estAdmin() ? '<a class="btn danger gros" href="#/reinitialisation">Réinitialiser les données</a>' : '')}
     <form id="fp" class="entete-layout">
       <div>
         <fieldset class="fieldset"><legend>Entête des documents</legend><div class="form-grid">

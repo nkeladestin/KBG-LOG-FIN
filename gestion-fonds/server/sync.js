@@ -89,6 +89,7 @@ class Synchro {
     await this._alignerCompteurs();
     const premiere = !this.local.meta.pullInitial;
     await this._recevoir(premiere);
+    if (!premiere) await this._rapprocher().catch((e) => console.warn('[sync] Rapprochement des suppressions :', e.message));
     if (premiere) await this._oublierComptesLocaux();
     if (premiere) await this.local.majMeta({ pullInitial: new Date().toISOString() });
     await this._envoyer();
@@ -199,6 +200,24 @@ class Synchro {
     this.derniereReception = debut.toISOString();
     await this.local.majMeta({ dernierPull: this.derniereReception });
     if (n) console.log(`[sync] ${n} document(s) reçu(s) du cloud.`);
+  }
+
+  /**
+   * Après une coupure : ce qui a été supprimé dans le cloud pendant que le poste était hors ligne
+   * (suppression par l'administrateur, réinitialisation…) est retiré du poste. On compare seulement les
+   * identifiants ; les saisies du poste pas encore envoyées (file d'envoi) sont toujours conservées.
+   */
+  async _rapprocher() {
+    let n = 0;
+    for (const col of SYNCHRONISEES) {
+      const c = this.db.collection(col);
+      const ids = this.parServeur ? await c.listerIds() : (await c.find({}, { projection: { _id: 1 } }).toArray()).map((d) => d._id);
+      const cloud = new Set(ids);
+      const enAttente = new Set([...this.local.outbox.values()].filter((e) => e.col === col).map((e) => e.id));
+      const absents = (await this.local.col(col).find({})).map((d) => d._id).filter((id) => !cloud.has(id) && !enAttente.has(id));
+      if (absents.length) n += await this.local.appliquerDistant(col, [], absents);
+    }
+    if (n) console.log(`[sync] ${n} document(s) supprimé(s) dans le cloud pendant la coupure, retiré(s) du poste.`);
   }
 
   /**

@@ -92,3 +92,95 @@ ACTIONS['adm-purger'] = (ds) => {
     <p class="form-error" hidden></p><div class="form-foot"><button type="button" class="btn" data-action="close-modal">Annuler</button><button class="btn danger" type="submit">Supprimer définitivement</button></div></form>`,
   (m) => lierFormulaire($('#f', m), async () => { await api('POST', `/api/admin/corbeille/${ds.id}/supprimer`); fermerModale(); toast('Supprimé définitivement.', 'ok'); afficherPage(); }));
 };
+
+/* ============================================ Sauvegarde et réinitialisation */
+function telechargerJson(obj, nom) {
+  const blob = new Blob([JSON.stringify(obj)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = nom;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+const nomSauvegarde = () => `Sauvegarde_MIL-FIN_STOCK_${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '').replace(/^(\d{8})(\d{4})$/, '$1-$2')}.json`;
+
+PAGES.reinitialisation = {
+  perm: null,
+  agence: 'toutes',
+  async render() {
+    if (!estAdmin()) return `${tete('Sauvegarde et réinitialisation', '')}<div class="card"><p class="empty">Réservé à l'administrateur.</p></div>`;
+    const info = await api('GET', `/api/admin/reinitialiser?agence=${encodeURIComponent(this.agence)}`);
+    this.info = info;
+    const ags = (S.me.agences || []).filter((g) => g.actif !== false);
+    return `${tete('Sauvegarde et réinitialisation', "Télécharger une copie des données, les effacer pour repartir de zéro, ou remettre en place une sauvegarde")}
+    <div class="card reinit-carte">
+      <h2>Réinitialiser les données</h2>
+      <p>Efface les données choisies, sur tous les appareils (cloud, ordinateurs, téléphones). Les <b>utilisateurs</b>, les <b>agences</b> et l'<b>entête / paramètres</b> sont toujours conservés.
+      Une <b>sauvegarde est téléchargée automatiquement juste avant</b> : elle permet de tout remettre en place.</p>
+      <div class="filters"><label>Étendue<select id="reinit-agence"><option value="toutes">Toutes les agences</option>${ags.map((g) => `<option value="${g._id}" ${g._id === this.agence ? 'selected' : ''}>Agence ${esc(g.nom)} uniquement</option>`).join('')}</select></label></div>
+      <div class="reinit-choix">${info.categories.map((c) => `<label class="check ${c.commune && this.agence !== 'toutes' ? 'desactive' : ''}"><input type="checkbox" value="${c.cle}" ${c.defaut && !(c.commune && this.agence !== 'toutes') ? 'checked' : ''} ${c.commune && this.agence !== 'toutes' ? 'disabled' : ''}>
+        <span><b>${esc(c.nom)}</b> <span class="badge">${nb(c.nombre).replace(/,00$/, '')}</span><br><small class="muted">${esc(c.detail)}${c.commune && this.agence !== 'toutes' ? ' — commun à toutes les agences : seulement avec « Toutes les agences »' : ''}</small></span></label>`).join('')}</div>
+      <button class="btn danger gros" data-action="adm-reinit">Réinitialiser les données…</button>
+    </div>
+    <div class="card"><h2>Sauvegarder</h2><p>Télécharge un fichier contenant les données cochées ci-dessus (à garder en lieu sûr).</p>
+      <button class="btn" data-action="adm-sauvegarder">Télécharger une sauvegarde</button></div>
+    <div class="card"><h2>Restaurer une sauvegarde</h2><p>Remet en place les éléments d'un fichier de sauvegarde. Ceux qui existent déjà ne sont pas modifiés.</p>
+      <label class="btn" style="display:inline-flex;width:auto">Choisir le fichier de sauvegarde…<input type="file" id="fichier-sauvegarde" accept=".json,application/json" hidden></label></div>`;
+  },
+  mount(root) {
+    const sel = $('#reinit-agence', root);
+    if (sel) sel.addEventListener('change', () => { this.agence = sel.value; afficherPage(); });
+    const f = $('#fichier-sauvegarde', root);
+    if (f) f.addEventListener('change', async () => {
+      const fichier = f.files[0]; if (!fichier) return;
+      let sv;
+      try { sv = JSON.parse(await fichier.text()); } catch { toast("Ce fichier n'est pas une sauvegarde lisible.", 'err'); return; }
+      const n = Object.values(sv.collections || {}).reduce((a, d) => a + (Array.isArray(d) ? d.length : 0), 0);
+      ouvrirModale('Restaurer une sauvegarde', `<form id="f"><p style="margin-top:0">Sauvegarde du <b>${esc(fdt(sv.date || ''))}</b> (${esc(String(n))} élément(s)${sv.agence ? `, agence ${esc(nomAgenceId(sv.agence))}` : ''}).</p>
+        <p>Les éléments absents seront remis en place à l'identique ; ceux qui existent déjà sont laissés tels quels.</p>
+        <p class="form-error" hidden></p><div class="form-foot"><button type="button" class="btn" data-action="close-modal">Annuler</button><button class="btn primary" type="submit">Restaurer</button></div></form>`,
+      (m) => lierFormulaire($('#f', m), async () => {
+        const r = await api('POST', '/api/admin/sauvegarde/restaurer', { sauvegarde: sv });
+        fermerModale(); toast(`Sauvegarde restaurée : ${r.ajoutes} élément(s) remis en place${r.presents ? `, ${r.presents} déjà présent(s)` : ''}.${r.doublons ? ` Attention : ${r.doublons} numéro(s) de pièce en double (pièces saisies après la remise à 1 de la numérotation).` : ''}`, r.doublons ? 'err' : 'ok');
+        f.value = ''; await chargerReference().catch(() => {}); afficherPage();
+      }));
+    });
+  },
+};
+const choixReinit = () => $$('.reinit-choix input:checked').map((x) => x.value);
+
+ACTIONS['adm-sauvegarder'] = async () => {
+  const cats = choixReinit();
+  if (!cats.length) { toast('Cochez au moins une catégorie.', 'err'); return; }
+  const sv = await api('GET', `/api/admin/sauvegarde?categories=${cats.join(',')}&agence=${encodeURIComponent(PAGES.reinitialisation.agence)}`);
+  telechargerJson(sv, nomSauvegarde());
+  toast('Sauvegarde téléchargée (dossier Téléchargements).', 'ok');
+};
+
+ACTIONS['adm-reinit'] = async () => {
+  const P = PAGES.reinitialisation; const cats = choixReinit();
+  if (!cats.length) { toast('Cochez au moins une catégorie de données à effacer.', 'err'); return; }
+  const choisies = P.info.categories.filter((c) => cats.includes(c.cle));
+  const total = choisies.reduce((a, c) => a + c.nombre, 0);
+  const etendue = P.agence === 'toutes' ? 'TOUTES LES AGENCES' : `l'agence ${nomAgenceId(P.agence)}`;
+  ouvrirModale('Réinitialiser les données', `<form id="f">
+    <p class="avert-admin" style="margin-top:0">⚠ <b>${total} élément(s)</b> vont être effacés pour <b>${esc(etendue)}</b>, sur tous les appareils :</p>
+    <ul class="liste-liees">${choisies.map((c) => `<li><b>${esc(c.nom)}</b> (${c.nombre})</li>`).join('')}</ul>
+    <p>Une sauvegarde est téléchargée automatiquement avant l'effacement.</p>
+    <div class="form-grid">
+      ${P.agence === 'toutes' && P.info.renumerotationPossible && cats.some((k) => ['tresorerie', 'stock'].includes(k)) ? '<label class="full check"><input type="checkbox" name="numerotation" value="1"> Remettre la numérotation à 1 (BQ, BEC, BSC, OV, PV, BC, BL, MV…)</label>' : ''}
+      <label class="full">Motif<input name="motif" placeholder="ex. fin des essais, démarrage réel"></label>
+      <label>Tapez <b>REINITIALISER</b> pour confirmer<input name="confirmation" required autocomplete="off"></label>
+      <label>Votre mot de passe administrateur<input type="password" name="motDePasse" required autocomplete="current-password"></label>
+    </div>
+    <p class="form-error" hidden></p><div class="form-foot"><button type="button" class="btn" data-action="close-modal">Annuler</button><button class="btn danger" type="submit">Sauvegarder puis effacer</button></div></form>`,
+  (m) => lierFormulaire($('#f', m), async (d) => {
+    if (String(d.confirmation).trim().toUpperCase() !== 'REINITIALISER') throw new Error('Tapez exactement REINITIALISER.');
+    const sv = await api('GET', `/api/admin/sauvegarde?categories=${cats.join(',')}&agence=${encodeURIComponent(P.agence)}`);
+    telechargerJson(sv, nomSauvegarde());
+    const r = await api('POST', '/api/admin/reinitialiser', { categories: cats, agenceId: P.agence, confirmation: d.confirmation, motDePasse: d.motDePasse, motif: d.motif, numerotation: !!d.numerotation });
+    fermerModale();
+    toast(`Réinitialisation faite : ${r.total} élément(s) effacé(s)${r.numerotation ? ', numérotation remise à 1' : ''}. La sauvegarde est dans vos Téléchargements.`, 'ok');
+    await chargerReference().catch(() => {}); afficherPage();
+    if (typeof majBadgeStock === 'function') majBadgeStock();
+  }));
+};

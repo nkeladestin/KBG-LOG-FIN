@@ -66,6 +66,11 @@ class RelaisDistant {
             const depuis = filtre._maj && filtre._maj.$gte;
             return { toArray: async () => (await relais.appel('GET', `/api/relais/lire?col=${encodeURIComponent(col)}${depuis ? `&depuis=${encodeURIComponent(depuis)}` : ''}`, null, 120000)).docs };
           },
+          /** Identifiants seulement (rapprochement après une coupure). */
+          async listerIds() {
+            const r = await relais.appel('GET', `/api/relais/lire?col=${encodeURIComponent(col)}&idsSeuls=1`, null, 120000);
+            return r.ids || (r.docs || []).map((d) => d._id); // un serveur plus ancien renvoie les documents
+          },
           async updateOne(filtre, maj) {
             if (col !== 'compteurs' || !maj.$max) throw new Error('Opération non prise en charge par le relais');
             return relais.appel('POST', '/api/relais/compteur', { id: filtre._id, max: maj.$max.seq });
@@ -187,6 +192,7 @@ function creerRelaisServeur({ store, auth }) {
     const f = { ...filtreLecture(col, ctx.agence) };
     if (q.get('depuis')) f._maj = { $gte: q.get('depuis') };
     if (q.get('ids')) f._id = { $in: q.get('ids').split(',').filter(Boolean).slice(0, 500) };
+    if (q.get('idsSeuls')) return { ids: (await mongo(col).find(f, { projection: { _id: 1 } }).toArray()).map((d) => d._id) };
     const docs = await mongo(col).find(f).toArray();
     return { docs: docs.map((d) => nettoyer(col, d, ctx.agence)) };
   }

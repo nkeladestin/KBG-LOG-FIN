@@ -14,7 +14,7 @@ const r2 = (x) => Math.round(Number(x) * 100) / 100;
 const q3 = (x) => Math.round(Number(x) * 1000) / 1000;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-function createAdmin({ store, donnees, svc, broadcast }) {
+function createAdmin({ store, donnees, svc, broadcast, verifierMdp, version = '', reinitCompteurs = null, peutRenumeroter = () => false, apresReinit = null }) {
   const { ErreurMetier, audit, getParametres, texte } = svc;
   const now = () => new Date().toISOString();
   const col = (c) => store.col(c);
@@ -326,7 +326,118 @@ function createAdmin({ store, donnees, svc, broadcast }) {
     return { ok: true };
   }
 
-  return { TYPES, apercu, supprimer, modifier, corbeille, restaurer, viderCorbeille };
+  /* ============================================ Sauvegarde et réinitialisation */
+  // Ce qui peut être effacé ; les utilisateurs, rôles, agences et paramètres (entête, devise…) ne le sont jamais.
+  const CATEGORIES = {
+    tresorerie: { nom: 'Banque et caisse', detail: 'opérations bancaires, ordres de virement, bons de caisse, clôtures, PV de contrôle', cols: ['operations', 'ordres', 'bons', 'clotures', 'pv'], prefixes: ['BQ', 'OV', 'BEC', 'BSC', 'PV'], defaut: true },
+    previsions: { nom: 'Prévisions de trésorerie', detail: 'montants prévus par mois', cols: ['previsions'], defaut: true },
+    stock: { nom: 'Stock', detail: 'bons de commande, livraisons, entrées, inventaires, mouvements', cols: ['cmd_bons', 'cmd_livraisons', 'cmd_mouvements'], prefixes: ['BC', 'BL', 'MV'], defaut: true },
+    corbeille: { nom: 'Corbeille', detail: 'éléments supprimés en attente', cols: ['corbeille'], defaut: true },
+    comptes: { nom: 'Comptes bancaires et fournisseurs', detail: 'fiches des comptes (soldes initiaux) et des fournisseurs', cols: ['comptes', 'fournisseurs'], defaut: false },
+    referentiel: { nom: 'Régions, unités, articles et types de bons', detail: 'les articles et types de bons par défaut sont recréés', cols: ['cmd_regions', 'cmd_unites', 'cmd_articles', 'cmd_types'], defaut: false },
+    audit: { nom: "Journal d'audit", detail: "historique des opérations (la réinitialisation elle-même y reste inscrite)", cols: ['audit'], defaut: false },
+  };
+  const { PAR_AGENCE: PAR_AG, SIEGE } = require('./agences');
+  function lireChoix(categories, agenceId) {
+    const cats = (Array.isArray(categories) ? categories : String(categories || '').split(',')).map((x) => String(x).trim()).filter(Boolean);
+    if (!cats.length) throw new ErreurMetier('Choisissez au moins une catégorie de données.');
+    for (const c of cats) if (!CATEGORIES[c]) throw new ErreurMetier(`Catégorie inconnue : ${c}`);
+    return { cats, agence: agenceId && agenceId !== 'toutes' ? String(agenceId) : null };
+  }
+  /** Filtre d'une collection selon l'étendue : toutes les agences, ou une seule (les données communes ne sont alors pas touchées). */
+  function filtre(c, agence) {
+    if (!agence) return {};
+    if (!PAR_AG.has(c)) return null; // donnée commune à toutes les agences
+    return agence === SIEGE ? { $or: [{ agenceId: SIEGE }, { agenceId: { $exists: false } }, { agenceId: null }, { agenceId: '' }] } : { agenceId: agence };
+  }
+  async function compter(cats, agence) {
+    const r = {};
+    for (const k of cats) {
+      let n = 0;
+      for (const c of CATEGORIES[k].cols) { const f = filtre(c, agence); if (f) n += await col(c).countDocuments(f); }
+      r[k] = n;
+    }
+    return r;
+  }
+  async function infosReinit(user, agenceId) {
+    exigerAdmin(user);
+    const agence = agenceId && agenceId !== 'toutes' ? agenceId : null;
+    const nombres = await compter(Object.keys(CATEGORIES), agence);
+    return {
+      categories: Object.entries(CATEGORIES).map(([k, v]) => ({ cle: k, nom: v.nom, detail: v.detail, defaut: v.defaut, nombre: nombres[k], commune: v.cols.every((c) => !PAR_AG.has(c)) })),
+      renumerotationPossible: !!reinitCompteurs && peutRenumeroter(),
+    };
+  }
+  async function sauvegarde(user, categories, agenceId) {
+    exigerAdmin(user);
+    const { cats, agence } = lireChoix(categories, agenceId);
+    const collections = {};
+    for (const k of cats) for (const c of CATEGORIES[k].cols) { const f = filtre(c, agence); if (f) collections[c] = await col(c).find(f); }
+    await audit(donnees, user, 'Sauvegarde des données téléchargée', cats.map((k) => CATEGORIES[k].nom).join(', '), agence ? `Agence ${agence}` : 'Toutes les agences');
+    return { application: 'MIL FIN_STOCK', format: 1, version, date: now(), par: user.identifiant, agence, categories: cats, collections };
+  }
+  async function reinitialiser(user, body) {
+    exigerAdmin(user);
+    const { cats, agence } = lireChoix(body.categories, body.agenceId);
+    if (String(body.confirmation || '').trim().toUpperCase() !== 'REINITIALISER') throw new ErreurMetier('Pour confirmer, tapez exactement REINITIALISER.');
+    const u = await col('utilisateurs').findOne({ _id: user._id });
+    if (!u || !verifierMdp(String(body.motDePasse || ''), u.sel, u.hash)) throw new ErreurMetier('Mot de passe administrateur incorrect.', 403);
+    const avant = await compter(cats, agence);
+    const touchees = new Set();
+    for (const k of cats) for (const c of CATEGORIES[k].cols) { const f = filtre(c, agence); if (f) { await col(c).deleteMany(f); touchees.add(c); } }
+    let renum = false;
+    if (body.numerotation && !agence && reinitCompteurs && peutRenumeroter()) {
+      const prefixes = cats.flatMap((k) => CATEGORIES[k].prefixes || []);
+      if (prefixes.length) { await reinitCompteurs(prefixes); renum = true; }
+    }
+    if (apresReinit) await apresReinit(cats);
+    const total = Object.values(avant).reduce((a, b) => a + b, 0);
+    await audit(donnees, user, 'RÉINITIALISATION DES DONNÉES', agence ? `Agence ${agence}` : 'Toutes les agences',
+      `${total} élément(s) effacé(s) : ${cats.map((k) => `${CATEGORIES[k].nom} (${avant[k]})`).join(', ')}${renum ? ' – numérotation remise à 1' : ''}. Motif : ${texte(body.motif, 300) || '—'}`);
+    touchees.forEach((c) => broadcast(c));
+    broadcast('*');
+    return { ok: true, effaces: avant, total, numerotation: renum };
+  }
+  async function restaurerSauvegarde(user, body) {
+    exigerAdmin(user);
+    const sv = body && body.sauvegarde;
+    if (!sv || sv.application !== 'MIL FIN_STOCK' || !sv.collections || typeof sv.collections !== 'object') throw new ErreurMetier("Ce fichier n'est pas une sauvegarde de MIL FIN_STOCK.");
+    const permises = new Set(Object.values(CATEGORIES).flatMap((v) => v.cols));
+    let ajoutes = 0; let presents = 0;
+    for (const [c, docs] of Object.entries(sv.collections)) {
+      if (!permises.has(c) || !Array.isArray(docs)) continue;
+      for (const d of docs) {
+        if (!d || typeof d !== 'object' || !d._id) continue;
+        if (await col(c).findOne({ _id: d._id })) { presents += 1; continue; }
+        await col(c).insertOne({ ...d }); ajoutes += 1;
+      }
+      broadcast(c);
+    }
+    // La numérotation repart après les numéros restaurés (évite de redonner un numéro déjà utilisé).
+    const maxi = new Map();
+    for (const docs of Object.values(sv.collections)) {
+      if (!Array.isArray(docs)) continue;
+      for (const d of docs) {
+        const m = /^([A-Z]+-\d{4})-(\d+)$/.exec(String((d && d.numero) || ''));
+        if (m) maxi.set(m[1], Math.max(maxi.get(m[1]) || 0, Number(m[2])));
+      }
+    }
+    for (const [id, n] of maxi) {
+      const c = await col('compteurs').findOne({ _id: id });
+      if (!c || (c.seq || 0) < n) await col('compteurs').updateOne({ _id: id }, { $set: { seq: n } }, { upsert: true });
+    }
+    // Numéros en double (pièces saisies après une remise à 1 de la numérotation)
+    let doublons = 0;
+    for (const c of ['operations', 'ordres', 'bons', 'pv', 'cmd_bons', 'cmd_livraisons', 'cmd_mouvements']) {
+      const vus = new Set();
+      for (const d of await col(c).find({})) { if (!d.numero) continue; if (vus.has(`${d.agenceId}|${d.numero}`) || vus.has(d.numero)) doublons += 1; vus.add(d.numero); }
+    }
+    await audit(donnees, user, 'Sauvegarde restaurée', `Sauvegarde du ${String(sv.date || '').slice(0, 10)}`, `${ajoutes} élément(s) remis en place, ${presents} déjà présent(s)${doublons ? ` – ${doublons} numéro(s) en double` : ''}`);
+    broadcast('*');
+    return { ok: true, ajoutes, presents, doublons };
+  }
+
+  return { TYPES, apercu, supprimer, modifier, corbeille, restaurer, viderCorbeille, infosReinit, sauvegarde, reinitialiser, restaurerSauvegarde, CATEGORIES };
 }
 
 module.exports = { createAdmin };

@@ -170,6 +170,17 @@ Réservé aux comptes **Administrateur** (jamais aux responsables d'agence) :
   ou supprimé définitivement. Elle est partagée entre le cloud et les ordinateurs de l'administration.
 - Chaque modification (avant → après), suppression et restauration est inscrite au **journal d'audit** ; le journal lui-même ne se supprime pas.
 
+## 4 quinquies. Sauvegarde et réinitialisation des données (administrateur)
+
+Menu Administration → **Sauvegarde et réinitialisation** (ou bouton rouge « Réinitialiser les données » dans Entête & paramètres) :
+- **Réinitialiser** : cochez ce qu'il faut effacer (banque et caisse, prévisions, stock, corbeille, comptes et fournisseurs,
+  régions / unités / articles, journal d'audit), pour toutes les agences ou une seule. Les utilisateurs, les agences et
+  l'entête / paramètres sont toujours conservés. Confirmation : taper REINITIALISER et le mot de passe administrateur.
+  Option : remettre la numérotation à 1 (depuis la version en ligne). Une **sauvegarde est téléchargée automatiquement** juste avant.
+- **Sauvegarder** : télécharge un fichier .json des données cochées.
+- **Restaurer** : remet en place le contenu d'un fichier de sauvegarde (sans doublon ; la numérotation repart après les numéros restaurés).
+- L'effacement s'applique partout : cloud, ordinateurs (même s'ils étaient éteints : ils se mettent à jour à la reconnexion) et téléphones.
+
 ## 4 ter. Utilisateurs
 
 - Deux sortes de comptes : **Administrateur** (toutes les agences, tous les droits) et **Responsable d'agence** (une seule agence).
